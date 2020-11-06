@@ -1,5 +1,5 @@
-#use "pc.ml";;
-#use "reader.ml";;
+#use "../pc.ml";;
+#use "../reader.ml";;
 open PC;;
 
 let digit = range '0' '9';;
@@ -25,8 +25,27 @@ let nt_Integer =
 let nt_Float = caten nt_Integer 
               (caten (char '.') nt_Natural);;
 
-let nt_Fraction = caten nt_Integer 
-                 (caten (char '/') nt_Natural);;
+let rec gcd a b = 
+  if a = 0 then b
+  else gcd (b mod a) a;;
+
+
+let nt_Fraction = 
+  let frac = caten nt_Integer 
+                 (caten (char '/') nt_Natural) in
+                 pack frac
+                   (fun (a,rest) ->
+                    match a with
+                    | Fraction(denom,_),(_,nomen) -> []
+                    | _ -> raise X_no_match
+                   )
+                 
+             ;;
+
+             (*try let (Fraction(denom,_),(_,nomen)) = f  in
+             let gd = gcd denom nomen 
+             Fraction(denom, nomen)*)
+             
 
 let nt_Number = disj nt_Integer 
                (disj nt_Float nt_Fraction);;
