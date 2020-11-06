@@ -31,20 +31,29 @@ let rec gcd a b =
 
 
 let nt_Fraction = 
-  let frac = caten nt_Integer 
-                 (caten (char '/') nt_Natural) in
-                 pack frac
-                   (fun (a,rest) ->
-                    match a with
-                    | Fraction(denom,_),(_,nomen) -> []
-                    | _ -> raise X_no_match
+  let frac = caten nt_Integer (caten (char '/') nt_Natural) in
+              pack frac
+                   (fun (fr,(_,denom)) ->
+                   match fr with 
+                   | Fraction(nomer,_) -> let gd = gcd nomer denom in
+                                          Fraction(nomer/gd , denom/gd)
+                   | _ -> raise X_no_match
                    )
                  
              ;;
 
-             (*try let (Fraction(denom,_),(_,nomen)) = f  in
-             let gd = gcd denom nomen 
-             Fraction(denom, nomen)*)
+            (* before:
+            # let nt_Fraction = 
+              let frac = caten nt_Integer (caten (char '/') nt_Natural) in
+                            pack frac
+                              (fun ((Fraction(denom,_),(_,nomen)),rest) ->
+                                match a with
+                                | number -> []
+                                | _ -> raise X_no_match
+                              )
+                            
+                        ;;
+            *)
              
 
 let nt_Number = disj nt_Integer 
