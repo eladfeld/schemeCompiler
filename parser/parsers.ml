@@ -2,79 +2,89 @@
 #use "../reader.ml";;
 open PC;;
 
-let digit = range '0' '9';;
-
-let nt_Sign = disj (char '+') (char '-');;
-
-let nt_Natural = 
-    let digits = plus digit in
-
-    
-    pack digits (fun (ds) -> (int_of_string (list_to_string ds)));;
-
-let nt_Integer = 
-  let integ = caten (maybe nt_Sign) nt_Natural in
-  pack integ 
-  (
-    fun ((sign,num)) -> 
-      match sign with
-      | Some('+') -> Fraction(num,1)
-      | Some('-') -> Fraction(-1*num,1)
-      | None -> Fraction(num,1)
-      | Some(_) -> raise X_no_match
-  );;
-
-let rec num_of_digits x =
-  if x <= 0 then 0
-  else num_of_digits (x / 10) + 1;;
-
-let rec pow num exp = 
-  if exp = 0 then 1
-  else  num *(pow (num) (exp -1));;
-
-let nt_Float =  
-              let flo = caten nt_Integer (caten (char '.') nt_Natural) in
-              pack flo
-              (fun ((frac,(_,rs)))->
-              match frac with
-              |Fraction(ls, _) -> (float_of_int ls) +. ((float_of_int rs) /. (float_of_int (pow 10 (num_of_digits rs))))
-              | _ -> raise X_no_match
-              );;
-
+(*-------------------------------------helper functions----------------------------------------*)
 
 let rec gcd a b = 
   if a = 0 then b
   else gcd (b mod a) a;;
 
+let float_of_char c = 
+    let num = (int_of_char c)-(int_of_char '0') in
+      float_of_int num
+
+(*-----------------------------------------end-------------------------------------------------*)
+
+let digit = range '0' '9';;
+
+let nt_Sign = 
+  let sign =maybe (disj (char '+') (char '-')) in
+  pack sign 
+  (
+    fun (s) ->
+      match s with 
+      | Some('+') -> 1
+      | Some('-') -> -1
+      | None -> 1
+      | _ -> raise X_no_match
+  )
+  ;;
+
+let nt_Natural = 
+    let digits = plus digit in
+      pack digits (fun (ds) -> (int_of_string (list_to_string ds)));;
+
+let nt_Mantissa = 
+  let mantissa = plus digit in
+    pack mantissa (
+                  fun (ds) -> 
+                    List.fold_right 
+                        (fun a b ->
+                          let f = (float_of_char a) in
+                          (f +. b ) /. 10.)
+                        ds 
+                        0.
+                );;
+                    
+let nt_Integer = 
+  let integ = caten nt_Sign nt_Natural in
+  pack integ 
+  (
+    fun ((sign,num)) -> 
+     Fraction(sign*num,1)
+  );;
+
+let nt_IntegerAsInteger =
+  let integ = caten nt_Sign nt_Natural in
+    pack integ 
+    (
+      fun ((sign,num)) -> 
+        sign*num
+    );;
+
+let nt_Float = 
+  let flo = caten nt_IntegerAsInteger (caten (char '.') nt_Mantissa) in
+    pack flo
+    (
+      fun (ls,(_,rs)) ->
+        if ls<0 
+        then Float((float_of_int ls) -. rs)
+        else Float((float_of_int ls) +. rs)
+    );;
+
+
 
 let nt_Fraction = 
-  let frac = caten nt_Integer (caten (char '/') nt_Natural) in
+  let frac = caten nt_IntegerAsInteger (caten (char '/') nt_Natural) in
               pack frac
-                   (fun (fr,(_,denom)) ->
-                   match fr with 
-                   | Fraction(nomer,_) -> let gd = gcd nomer denom in
-                                          Fraction(nomer/gd , denom/gd)
-                   | _ -> raise X_no_match
+                   (fun (nomer,(_,denom)) ->
+                      let gd = gcd nomer denom in
+                      Fraction(nomer/gd , denom/gd)
                    )
                  
              ;;
-
-            (* before:
-            # let nt_Fraction = 
-              let frac = caten nt_Integer (caten (char '/') nt_Natural) in
-                            pack frac
-                              (fun ((Fraction(denom,_),(_,nomen)),rest) ->
-                                match a with
-                                | number -> []
-                                | _ -> raise X_no_match
-                              )
-                            
-                        ;;
-            *)
              
-
-let nt_Number = disj nt_Integer 
-               (disj nt_Float nt_Fraction);;
+let nt_Number = disj nt_Float  
+               (disj nt_Fraction nt_Integer);;
  
 
 let nt_LowerCaseLetter = range 'a' 'z';;
