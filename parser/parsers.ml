@@ -8,6 +8,8 @@ let nt_Sign = disj (char '+') (char '-');;
 
 let nt_Natural = 
     let digits = plus digit in
+
+    
     pack digits (fun (ds) -> (int_of_string (list_to_string ds)));;
 
 let nt_Integer = 
@@ -22,8 +24,23 @@ let nt_Integer =
       | Some(_) -> raise X_no_match
   );;
 
-let nt_Float = caten nt_Integer 
-              (caten (char '.') nt_Natural);;
+let rec num_of_digits x =
+  if x <= 0 then 0
+  else num_of_digits (x / 10) + 1;;
+
+let rec pow num exp = 
+  if exp = 0 then 1
+  else  num *(pow (num) (exp -1));;
+
+let nt_Float =  
+              let flo = caten nt_Integer (caten (char '.') nt_Natural) in
+              pack flo
+              (fun ((frac,(_,rs)))->
+              match frac with
+              |Fraction(ls, _) -> (float_of_int ls) +. ((float_of_int rs) /. (float_of_int (pow 10 (num_of_digits rs))))
+              | _ -> raise X_no_match
+              );;
+
 
 let rec gcd a b = 
   if a = 0 then b
