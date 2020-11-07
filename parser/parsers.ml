@@ -9,7 +9,7 @@ let nt_Sign = disj (char '+') (char '-');;
 let nt_Natural = 
     let digits = plus digit in
 
-    
+
     pack digits (fun (ds) -> (int_of_string (list_to_string ds)));;
 
 let nt_Integer = 
@@ -59,19 +59,6 @@ let nt_Fraction =
                  
              ;;
 
-            (* before:
-            # let nt_Fraction = 
-              let frac = caten nt_Integer (caten (char '/') nt_Natural) in
-                            pack frac
-                              (fun ((Fraction(denom,_),(_,nomen)),rest) ->
-                                match a with
-                                | number -> []
-                                | _ -> raise X_no_match
-                              )
-                            
-                        ;;
-            *)
-             
 
 let nt_Number = disj nt_Integer 
                (disj nt_Float nt_Fraction);;
@@ -81,7 +68,7 @@ let nt_LowerCaseLetter = range 'a' 'z';;
 
 let nt_UpperCaseLetter = range 'A' 'Z';;
 
-let nt_PunctuationMarks =  disj (char '!') 
+(*let nt_PunctuationMarks =  disj (char '!') 
                           (disj (char '$') 
                           (disj (char '^')
                           (disj (char '-')
@@ -91,7 +78,21 @@ let nt_PunctuationMarks =  disj (char '!')
                           (disj (char '<')
                           (disj (char '>')
                           (disj (char '?')
-                          (disj (char '/') (char ':') ))))))))));;
+                          (disj (char '/') (char ':') ))))))))));;*)
+
+let nt_PunctuationMarks = disj_list 
+  char '!' :: 
+  char '$' ::
+  char '^' ::
+  char '-' ::
+  char '_' ::
+  char '=' ::
+  char '+' ::
+  char '<' ::
+  char '>' ::
+  char '?' ::
+  char '/' ::
+  char ':' ::[]
 
 let nt_Dot = (char '.');;
 
