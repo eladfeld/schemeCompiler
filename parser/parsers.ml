@@ -2,157 +2,11 @@
 #use "../reader.ml";;
 open PC;;
 
-(*-------------------------------------helper functions----------------------------------------*)
-
-let rec gcd a b = 
-  if a = 0 then b
-  else gcd (b mod a) a;;
-
-let float_of_char c = 
-    let num = (int_of_char c)-(int_of_char '0') in
-      float_of_int num
-
-
-(*-----------------------------------------end-------------------------------------------------*)
-
-let digit = range '0' '9';;
-
-let nt_Sign = 
-  let sign =maybe (disj (char '+') (char '-')) in
-  pack sign 
-  (
-    fun (s) ->
-      match s with 
-      | Some('+') -> 1
-      | Some('-') -> -1
-      | None -> 1
-      | _ -> raise X_no_match
-  )
-  ;;
-
-let nt_Natural = 
-    let digits = plus digit in
-      pack digits (fun (ds) -> (int_of_string (list_to_string ds)));;
-
-let nt_Mantissa = 
-  let mantissa = plus digit in
-    pack mantissa (
-                  fun (ds) -> 
-                    List.fold_right 
-                        (fun a b ->
-                          let f = (float_of_char a) in
-                          (f +. b ) /. 10.)
-                        ds 
-                        0.
-                );;
- (**)
-let nt_IntegerAsInteger =
-  let integ = caten nt_Sign nt_Natural in
-    pack integ 
-    (
-      fun ((sign,num)) -> 
-        sign*num
-    );; 
-    
-(*   *)
-let nt_Fraction = 
-  let frac = caten nt_IntegerAsInteger (caten (char '/') nt_Natural) in
-              pack frac
-                   (fun (nomer,(_,denom)) ->
-                      let gd = gcd nomer denom in
-                      Fraction(nomer/gd , denom/gd)
-                   )
-                 
-             ;;
-
-(*  *)
-let nt_Integer = 
-  let integ = caten nt_Sign nt_Natural in
-  pack integ 
-  (
-    fun ((sign,num)) -> 
-     Fraction(sign*num,1)
-  );;
-
-
-
-let nt_Float = 
-  let flo = caten nt_IntegerAsInteger (caten (char '.') nt_Mantissa) in
-    pack flo
-    (
-      fun (ls,(_,rs)) ->
-        if ls<0 
-        then Float((float_of_int ls) -. rs)
-        else Float((float_of_int ls) +. rs)
-    );;
-             
-let nt_Number = disj nt_Float  
-               (disj nt_Fraction nt_Integer);;
- 
 
 let nt_LowerCaseLetter = range 'a' 'z';;
 
 let nt_UpperCaseLetter = range 'A' 'Z';;
 
-
-let nt_PunctuationMarks = disj_list 
-  (char '!' :: 
-  char '$' ::
-  char '^' ::
-  char '-' ::
-  char '_' ::
-  char '=' ::
-  char '+' ::
-  char '<' ::
-  char '>' ::
-  char '?' ::
-  char '/' ::
-  char ':' ::[]);;
-
-let nt_Dot = (char '.');;
-
-
-let nt_List = caten (char '(') 
-             (caten (star nt_sexpr) (char ')'));;
-
-let nt_DottedList = caten (char '(') 
-                   (caten (plus nt_Sexpr) 
-                   (caten (char '.') 
-                   (caten nt_Sexpr (char ')'))));;
-
-let nt_SymbolCharNotDot = disj digit 
-                         (disj nt_LowerCaseLetter 
-                         (disj nt_UpperCaseLetter nt_PunctuationMarks));;
-
-let nt_SymbolChar = disj nt_SymbolCharNotDot nt_Dot ;;
-
-let nt_Symbol = 
-  let sym = disj  
-      (pack (caten nt_SymbolChar (plus nt_SymbolChar)) (fun(a, b) -> a::b))
-      (pack nt_SymbolCharNotDot (fun(a)->a::[]))
-       in 
-    pack sym(
-      fun(a)->
-      Symbol(list_to_string (List.map lowercase_ascii a))
-    );;
-
-let nt_StringMetaChar = caten 
-  (char '\'') 
-  (disj_list (
-    char '\''::
-    char '"'::
-    char 't'::
-    char 'f'::
-    char 'n'::
-    char 'r'::[]
-    ));;
-
-
-let nt_StringChar = disj nt_StringLiteralChar nt_StringMetaChar;;
-
-
-let nt_String = caten (char '"') 
-               (caten ( (star nt_StringChar) (char '"')));;
 
 let parse_True = 
   let tru  = word_ci "#t" in
@@ -168,13 +22,68 @@ let parse_False =
 
 let nt_Boolean = disj parse_False parse_True;;
 
+let nt_VisibleSimpleChar = guard nt_any (fun(c)-> c > ' ');;
 
-let nt_sexpr = disj_list 
-  (nt_Boolean::
-  ny_char::
-  
+let nt_NamedChar = disj_list 
+  (pack (word_ci "newline") (fun _-> char_of_int (10))::
+   pack (word_ci "nul") (fun _-> char_of_int (0))::
+   pack (word_ci "page") (fun _-> char_of_int(12)) ::
+   pack (word_ci "return") (fun _-> char_of_int(13)) :: 
+   pack (word_ci "space") (fun _-> char_of_int(32)) ::
+   pack (word_ci "tab") (fun _ -> char_of_int(9)) :: []);;
 
+let nt_Char = pack (caten (word "#\\") (disj nt_VisibleSimpleChar  nt_NamedChar)) (fun (_, c) -> Char(c));;
 
+let nt_WhiteSpace = range (char_of_int 0) ' ';;
 
+let nt_WhiteSpaces = star nt_WhiteSpace;;
 
+let make_paired nt_left nt_right nt =
+  let nt = caten nt_left nt in
+  let nt = pack nt (function (_, e) -> e) in
+  let nt = caten nt nt_right in
+  let nt = pack nt (function (e, _) -> e) in
+    nt;;
 
+let make_spaced nt = make_paired nt_WhiteSpaces nt_WhiteSpaces nt;;
+
+let rec list_to_pair = fun(lst) ->
+match lst with 
+| car::cdr -> Pair(car, (list_to_pair cdr))
+| x -> Nil;;
+
+let rec nt_sexpr s= 
+  let nt_sexpr = 
+  make_spaced(disj_list 
+  (nt_Boolean::  
+  nt_Char::       
+  nt_Number::     
+  nt_String::     
+  nt_Symbol::
+  nt_List s::
+  nt_DottedList s::
+  nt_Quoted s::     
+  nt_QuasiQuoted s::
+  nt_Unquoted s::   
+  nt_UnquoteAndSpliced s::[]
+  )) in nt_sexpr s
+  and nt_List s = 
+    pack( caten (char '(') 
+            (caten (star nt_sexpr) (char ')'))) (fun (_, (a, _))->list_to_pair a)
+  and nt_DottedList s= 
+    pack
+      (caten (char '(') 
+          (caten (plus nt_sexpr) 
+            (caten (char '.') 
+            (caten nt_sexpr (char ')'))))) (fun (_, (ls, (_, (rs, _))))-> list_to_pair (List.append ls (rs::[])))
+  and nt_Quoted s= pack (caten (char (char_of_int 39)) nt_sexpr)
+      (fun (_, (sexp)) -> Pair(Symbol("quote") , Pair(sexp, Nil)))
+
+  and nt_QuasiQuoted s= pack (caten (char '`') nt_sexpr)
+    (fun (_, (sexp)) -> Pair(Symbol("quasiquote") , Pair(sexp, Nil)))
+
+  and nt_Unquoted s= pack (caten (char ',') nt_sexpr)
+    (fun (_, (sexp)) -> Pair(Symbol("unquote") , Pair(sexp, Nil)))
+
+  and nt_UnquoteAndSpliced s= pack (caten (word ",@") nt_sexpr)
+    (fun (_, (sexp)) -> Pair(Symbol("unquote-splicing") , Pair(sexp, Nil)));;
