@@ -1,5 +1,8 @@
 #use "../pc.ml";;
 #use "../reader.ml";;
+#use "numberParser.ml";;
+#use "stringParser.ml";;
+#use "symbolParser.ml";;
 open PC;;
 
 
@@ -32,7 +35,7 @@ let nt_NamedChar = disj_list
    pack (word_ci "space") (fun _-> char_of_int(32)) ::
    pack (word_ci "tab") (fun _ -> char_of_int(9)) :: []);;
 
-let nt_Char = pack (caten (word "#\\") (disj nt_VisibleSimpleChar  nt_NamedChar)) (fun (_, c) -> Char(c));;
+let nt_Char = pack (caten (word "#\\") (disj nt_NamedChar nt_VisibleSimpleChar)) (fun (_, c) -> Char(c));;
 
 let nt_WhiteSpace = range (char_of_int 0) ' ';;
 

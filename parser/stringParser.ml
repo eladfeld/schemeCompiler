@@ -4,16 +4,18 @@ open PC;;
 
 let nt_StringMetaChar = 
   (disj_list (
-    word "\\\\"::
-    word "\\t"::
-    word "\\f"::
-    word "\\n"::
-    word "\\r"::[]
+    char '\013' :: 
+    char '\010' :: 
+    char '\009' ::
+    char '\012' ::
+    char '\092' :: 
+    char '\034' :: 
+    []
     ));;
       
-let nt_StringLiteralChar = guard nt_any (fun(c)-> c != '"' && c != '\\');;
+let nt_StringLiteralChar = diff nt_any (disj (char '\092') (char '\034'));; (*anything but (") and (\)*)
 
-let nt_StringChar = disj nt_StringMetaChar (pack nt_StringLiteralChar (fun(a) -> a::[])) ;;
+let nt_StringChar = disj nt_StringMetaChar  nt_StringLiteralChar ;;
 
 let nt_String = 
   let str = caten (char '\"') 
