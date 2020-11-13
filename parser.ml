@@ -1,6 +1,7 @@
 #use "pc.ml";;
 #use "reader.ml";;
 open PC;;
+
 (*-------------------------------------helper functions-------------------------------------*)
   let rec gcd a b = 
     if a = 0 then b
@@ -10,19 +11,6 @@ open PC;;
       let num = (int_of_char c)-(int_of_char '0') in
         float_of_int num;;
 
-  let nt_WhiteSpace = range (char_of_int 0) ' ';;
-
-  let nt_WhiteSpaces = star nt_WhiteSpace;;
-  
-  let make_paired nt_left nt_right nt =
-    let nt = caten nt_left nt in
-    let nt = pack nt (function (_, e) -> e) in
-    let nt = caten nt nt_right in
-    let nt = pack nt (function (e, _) -> e) in
-      nt;;nt_DottedList
-  
-  let make_spaced nt = make_paired nt_WhiteSpaces nt_WhiteSpaces nt;;
-  
   let rec list_to_proper_list = fun(lst) ->
     match lst with 
     | car::cdr -> Pair(car, (list_to_proper_list cdr))
@@ -34,6 +22,21 @@ open PC;;
     | first :: [] -> Pair(first,Nil)
     | first :: second :: [] -> Pair(first,second)
     | first :: rest -> Pair(first,list_to_improper_list rest);;
+
+  let make_paired nt_left nt_right nt =
+    let nt = caten nt_left nt in
+    let nt = pack nt (function (_, e) -> e) in
+    let nt = caten nt nt_right in
+    let nt = pack nt (function (e, _) -> e) in
+      nt;;
+
+  let nt_notEndOfLine = guard nt_any (fun(c) -> c != '\n') ;;
+
+  let nt_LineComment = pack 
+                      (caten (char ';') (caten (star nt_notEndOfLine) (maybe (char '\n')))) 
+                      (fun(_,(list_of_char, _)) -> '_');;
+
+  let nt_WhiteSpace = range (char_of_int 0) ' ';;
 (*-------------------------------------Boolean----------------------------------------------*)
   let nt_False = pack (word_ci "#f") (fun _ -> Bool(false));;
   let nt_True = pack (word_ci "#t") (fun _ -> Bool(true));;
@@ -134,15 +137,31 @@ open PC;;
       );;
               
   let nt_Number = disj_list(
-    nt_Float :: 
-    nt_Fraction::
-    nt_Integer::[]
-    );;
+  nt_Float :: 
+  nt_Fraction::
+  nt_Integer::[]
+  );;
 
 
 (*-------------------------------------String-----------------------------------------------*)
-  let nt_String = nt_none;;
+  let nt_StringMetaChar = 
+    (disj_list (
+      word "\\\\"::
+      word "\\\"" ::
+      word "\\t"::
+      word "\\f"::
+      word "\\n"::
+      word "\\r"::[]
+      ));;
+        
+  let nt_StringLiteralChar = guard nt_any (fun(c)-> c != '"' && c != '\\');;
 
+  let nt_StringChar = disj nt_StringMetaChar (pack nt_StringLiteralChar (fun(a) -> a::[])) ;;
+
+  let nt_String = 
+    let str = caten (char '\"') 
+  (caten (pack (star nt_StringChar) (fun (a) -> List.flatten(a))) (char '\"')) in
+  pack str (fun(_, (a, _)) -> String(list_to_string a));;
 (*-------------------------------------Symbol-----------------------------------------------*)
 
   let nt_Dot = char '.' ;;
@@ -165,49 +184,64 @@ open PC;;
   let nt_SymbolCharNoDot = disj digit (disj nt_Letter nt_PunctuationMark);;
   let nt_SymbolChar = disj nt_SymbolCharNoDot nt_Dot;;
   let nt_Symbol = 
-      pack((disj 
-              (pack (caten nt_SymbolChar (plus nt_SymbolChar)) (fun (c,ls) -> c::ls))
-              (pack nt_SymbolCharNoDot (fun c -> c::[]))))
-      (fun (symb) -> Symbol(list_to_string symb));;
+    pack((disj 
+            (pack (caten nt_SymbolChar (plus nt_SymbolChar)) (fun (c,ls) -> c::ls))
+            (pack nt_SymbolCharNoDot (fun c -> c::[]))))
+    (fun (symb) -> Symbol(list_to_string symb));;
 
 (*-------------------------------------Sexp-------------------------------------------------*)
   let rec nt_Sexpr s= 
-    let nt_sexpr = 
-      make_spaced(disj_list ( 
-                    nt_Boolean::  
-                    nt_Char::       
-                    (not_followed_by nt_Number nt_Symbol)::     
-                    nt_String::     
-                    nt_Symbol::
-                    nt_List s::
-                    nt_DottedList s::
-                    nt_Quoted s::     
-                    nt_QuasiQuoted s::
-                    nt_Unquoted s::   
-                    nt_UnquoteAndSpliced s::[]))
-     in nt_sexpr s
+  let nt_sexpr = 
+    make_spaced(disj_list ( 
+                  nt_Boolean::  
+                  nt_Char::       
+                  (not_followed_by nt_Number nt_Symbol)::     
+                  nt_String::     
+                  nt_Symbol::
+                  nt_List s::
+                  nt_DottedList s::
+                  nt_Quoted s::     
+                  nt_QuasiQuoted s::
+                  nt_Unquoted s::   
+                  nt_UnquoteAndSpliced s::[])) 
+   in nt_sexpr s
 (*-------------------------------------List-------------------------------------------------*)
   and nt_List s = 
-    pack (caten (char '(') (caten (star nt_Sexpr) (char ')'))) 
-    (fun (_, (a, _))->list_to_proper_list a)
+  pack (caten (char '(') (caten (star nt_Sexpr) (char ')'))) 
+  (fun (_, (a, _))->list_to_proper_list a)
 
   and nt_DottedList s= 
-    pack
-      (caten (char '(') 
-          (caten (plus nt_Sexpr) 
-            (caten (char '.') 
-            (caten nt_Sexpr (char ')'))))) (fun (_, (ls, (_, (rs, _))))-> list_to_improper_list (List.append ls (rs::[])))
+  pack
+    (caten (char '(') 
+        (caten (plus nt_Sexpr) 
+          (caten (char '.') 
+          (caten nt_Sexpr (char ')'))))) (fun (_, (ls, (_, (rs, _))))-> list_to_improper_list (List.append ls (rs::[])))
 
 (*-------------------------------------Quotes-----------------------------------------------*)
 
   and nt_Quoted s= pack (caten (char (char_of_int 39)) nt_Sexpr)
-      (fun (_, (sexp)) -> Pair(Symbol("quote") , Pair(sexp, Nil)))
+    (fun (_, (sexp)) -> Pair(Symbol("quote") , Pair(sexp, Nil)))
 
   and nt_QuasiQuoted s= pack (caten (char '`') nt_Sexpr)
-    (fun (_, (sexp)) -> Pair(Symbol("quasiquote") , Pair(sexp, Nil)))
+  (fun (_, (sexp)) -> Pair(Symbol("quasiquote") , Pair(sexp, Nil)))
 
   and nt_Unquoted s= pack (caten (char ',') nt_Sexpr)
-    (fun (_, (sexp)) -> Pair(Symbol("unquote") , Pair(sexp, Nil)))
+  (fun (_, (sexp)) -> Pair(Symbol("unquote") , Pair(sexp, Nil)))
 
   and nt_UnquoteAndSpliced s= pack (caten (word ",@") nt_Sexpr)
-    (fun (_, (sexp)) -> Pair(Symbol("unquote-splicing") , Pair(sexp, Nil)));;
+  (fun (_, (sexp)) -> Pair(Symbol("unquote-splicing") , Pair(sexp, Nil)))
+
+(*-------------------------------------comments and whitespace------------------------------*)
+  and nt_SexprComment s= (pack 
+  (caten (word "#;") nt_Sexpr) 
+      (fun(_) -> '_')) 
+
+  and nt_CommentOrWhiteSpaces s=
+    star (disj_list([ nt_WhiteSpace; nt_LineComment; nt_SexprComment s]))
+
+  and make_spaced nt s= make_paired (nt_CommentOrWhiteSpaces s) (nt_CommentOrWhiteSpaces s) nt s;;
+
+
+
+
+  
