@@ -7,9 +7,7 @@ open PC;;
 
 let nt_Dot = (char '.');;
 
-let nt_LowerCaseLetter = range 'a' 'z';;
-
-let nt_UpperCaseLetter = range 'A' 'Z';;
+let nt_Letter = range_ci 'a' 'z';;
 
 let nt_PunctuationMarks = disj_list 
   (char '!' :: 
@@ -27,8 +25,7 @@ let nt_PunctuationMarks = disj_list
 
 
 let nt_SymbolCharNotDot = disj digit 
-                         (disj nt_LowerCaseLetter 
-                         (disj nt_UpperCaseLetter nt_PunctuationMarks));;
+                         (disj nt_Letter nt_PunctuationMarks));;
 
 let nt_SymbolChar = disj nt_SymbolCharNotDot nt_Dot ;;
 

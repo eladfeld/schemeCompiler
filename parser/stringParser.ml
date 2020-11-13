@@ -17,7 +17,11 @@ let nt_StringLiteralChar = diff nt_any (disj (char '\092') (char '\034'));; (*an
 
 let nt_StringChar = disj nt_StringMetaChar  nt_StringLiteralChar ;;
 
-let nt_String = 
-  let str = caten (char '\"') 
-(caten (pack (star nt_StringChar) (fun (a) -> List.flatten(a))) (char '\"')) in
-  pack str (fun(_, (a, _)) -> String(list_to_string a));;
+let nt_String = caten (caten (char '\"') (star nt_StringChar)) (char '\"');;
+
+
+
+
+(* let nt_String =  let str =  
+ (caten (pack (star nt_StringChar) (fun (a) -> List.flatten(a))) (char '\"')) in
+  pack str (fun(_, (a, _)) -> String(list_to_string a));; *)

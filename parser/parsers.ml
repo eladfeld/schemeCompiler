@@ -5,12 +5,6 @@
 #use "symbolParser.ml";;
 open PC;;
 
-
-let nt_LowerCaseLetter = range 'a' 'z';;
-
-let nt_UpperCaseLetter = range 'A' 'Z';;
-
-
 let parse_True = 
   let tru  = word_ci "#t" in
    pack tru 
