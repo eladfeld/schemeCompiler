@@ -27,7 +27,8 @@ open PC;;
     | Char(c1), Char(c2) -> c1 = c2
     | String(s1), String(s2) -> s1 = s2
     | Symbol(s1), Symbol(s2) -> s1 = s2
-    | Pair(car1, cdr1), Pair(car2, cdr2) -> (sexpr_eq car1 car2) && (sexpr_eq cdr1 cdr2);;
+    | Pair(car1, cdr1), Pair(car2, cdr2) -> (sexpr_eq car1 car2) && (sexpr_eq cdr1 cdr2)
+    | _ -> false;;
     
   
 (*-------------------------------------helper functions-------------------------------------*)
@@ -151,16 +152,15 @@ open PC;;
 
 
   let nt_Float = 
-    let flo = caten (caten nt_IntegerAsInteger (caten (char '.') nt_Mantissa)) (maybe nt_Snotation) in
+    let flo = caten (caten (maybe nt_Sign) (caten nt_Natural (caten (char '.') nt_Mantissa))) (maybe nt_Snotation) in
       pack flo
       (
-        fun ((ls,(_,rs)),sn) ->
-        let fl = if ls<0 
-        then ((float_of_int ls) -. rs)
-        else ((float_of_int ls) +. rs) in
-        match sn with
-        |Some(sn) -> Number(Float(sn *. fl))
-        |none -> Number(Float(fl))
+        fun ((sign,(rs,(_,ls))),sn) ->
+        match sign, sn with 
+        |Some(sign), Some(sn) -> Number(Float(sn *. (float_of_int sign) *. ((float_of_int rs) +. ls)))
+        |Some(sign), None -> Number(Float((float_of_int sign) *. ((float_of_int rs) +. ls)))
+        |None, Some(sn) -> Number(Float(sn *. ((float_of_int rs) +. ls)))
+        |None, None -> Number(Float(((float_of_int rs) +. ls)))
           
       );;
               
@@ -190,25 +190,6 @@ open PC;;
     let str = caten (char '\034') 
   (caten (star nt_StringChar) (char '\034')) in
   pack str (fun(_, (char_list, _)) -> String(list_to_string char_list));;
-  
-  (* let nt_StringMetaChar = 
-    (disj_list (
-      (pack (word "\\\\") (fun _ -> '\\'))::
-      (pack (word "\\\"") (fun _ -> '\"')) ::
-      (pack (word "\\t") (fun _->'\t'))::
-      (pack (word "\\f") (fun _->'\012'))::
-      (pack (word "\\n") (fun _-> '\n' ))::
-      (pack (word "\\r") (fun _-> '\r'))::[]
-      ));;
-        
-  let nt_StringLiteralChar = guard nt_any (fun(c)-> c != '"' && c != '\\');;
-
-  let nt_StringChar = disj nt_StringMetaChar (pack nt_StringLiteralChar (fun(a) -> a::[])) ;;
-
-  let nt_String = 
-    let str = caten (char '\"') 
-  (caten (pack (star nt_StringChar) (fun (a) -> List.flatten(a))) (char '\"')) in
-  pack str (fun(_, (a, _)) -> String(list_to_string a));; *)
 
 (*-------------------------------------Symbol-----------------------------------------------*)
 
