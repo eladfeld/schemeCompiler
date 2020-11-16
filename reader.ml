@@ -240,7 +240,7 @@ open PC;;
 (*-------------------------------------Sexp-------------------------------------------------*)
   let rec nt_Sexpr s= 
   let nt_sexpr = 
-    make_spaced(disj_list ( 
+    make_spacedCommented(disj_list ( 
                   nt_Boolean::  
                   nt_Char::       
                   (not_followed_by nt_Number nt_Symbol)::     
@@ -253,10 +253,20 @@ open PC;;
                   nt_Unquoted s::   
                   nt_UnquoteAndSpliced s::[])) 
   in nt_sexpr s
+
+  (*-------------------------------------comments and whitespace------------------------------*)
+  and nt_SexprComment s= (pack 
+  (caten (word "#;") nt_Sexpr) 
+      (fun(_) -> '_')) 
+
+  and nt_CommentOrWhiteSpaces s=
+    star (disj_list([ nt_WhiteSpace; nt_LineComment; nt_SexprComment s]))
+
+  and make_spacedCommented nt s= make_paired (nt_CommentOrWhiteSpaces s) (nt_CommentOrWhiteSpaces s) nt s
 (*-------------------------------------List-------------------------------------------------*)
   and nt_List s = 
-  pack (caten (char '(') (caten (star nt_Sexpr) (char ')'))) 
-  (fun (_, (a, _))->list_to_proper_list a)
+  pack (caten (char '(') (caten (nt_CommentOrWhiteSpaces s) (caten (star nt_Sexpr) (char ')')))) 
+  (fun (_, (_, (a, _)))->list_to_proper_list a)
 
   and nt_DottedList s= 
   pack
@@ -277,19 +287,9 @@ open PC;;
   (fun (_, (sexp)) -> Pair(Symbol("unquote") , Pair(sexp, Nil)))
 
   and nt_UnquoteAndSpliced s= pack (caten (word ",@") nt_Sexpr)
-  (fun (_, (sexp)) -> Pair(Symbol("unquote-splicing") , Pair(sexp, Nil)))
-(*-------------------------------------comments and whitespace------------------------------*)
-  and nt_SexprComment s= (pack 
-  (caten (word "#;") nt_Sexpr) 
-      (fun(_) -> '_')) 
+  (fun (_, (sexp)) -> Pair(Symbol("unquote-splicing") , Pair(sexp, Nil)));;
 
-  and nt_CommentOrWhiteSpaces s=
-    star (disj_list([ nt_WhiteSpace; nt_LineComment; nt_SexprComment s]))
 
-  and make_spaced nt s= make_paired (nt_CommentOrWhiteSpaces s) (nt_CommentOrWhiteSpaces s) nt s;;
-
-  
-  
 module Reader: sig
   val read_sexprs : string -> sexpr list
 end
