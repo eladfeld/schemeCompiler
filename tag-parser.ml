@@ -44,6 +44,19 @@ let rec expr_eq e1 e2 =
                        
 exception X_syntax_error;;
 
+
+let rec tag_parse exp = 
+  match exp with
+  | Number(x) -> Const(Sexpr(Number(x)))
+  | Pair(Symbol("quote"), Pair(x, Nil)) -> Const(Sexpr(x))
+  | Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) -> If(tag_parse test, tag_parse dit, tag_parse dif)
+  | Pair(Symbol("set!"), Pair(var, Pair(val, Nil))) -> Set(tag_parse var, tag_parse val)
+  | Pair(Symbol("define"), Pair(var, Pair(val, Nil))) -> Define(tag_parse var, tag_parse val)
+  | _ -> X_syntax_error;;
+
+
+
+
 module type TAG_PARSER = sig
   val tag_parse_expressions : sexpr list -> expr list
 end;; (* signature TAG_PARSER *)
