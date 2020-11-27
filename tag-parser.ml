@@ -1,4 +1,5 @@
 #use "reader.ml";;
+open Reader;;
 
 type constant =
   | Sexpr of sexpr
@@ -57,7 +58,8 @@ let rec is_proper_list pr =
   | Nil -> true
   | Pair(x, Nil)-> true
   | Pair(x, Pair(y, z)) -> is_proper_list (Pair(y, z))
-  | Pair (x,y) -> false;;
+  | Pair (x,y) -> false
+  | _ -> raise X_syntax_error;;
 
 
   let rec pairs_to_list_map pr func=
@@ -96,25 +98,27 @@ let rec tag_parse exp =
   | Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) -> If(tag_parse test, tag_parse dit, tag_parse dif)
   | Pair(Symbol("if"), Pair(test, Pair(dit,Nil))) -> If(tag_parse test, tag_parse dit, Const(Void))
   | Pair(Symbol("lambda"), x) -> parse_lambda  x
+  | Pair(Symbol("or"), Nil) ->  Const(Sexpr(Bool(false)))
+  | Pair(Symbol("or"), Pair(x, Nil)) ->  tag_parse x
   | Pair(Symbol("or"), x) -> Or(pairs_to_list_map x tag_parse)
   | Pair(Symbol("set!"), Pair(vars, Pair(vals, Nil))) -> Set(tag_parse vars, tag_parse vals)
   | Pair(Symbol("define"), Pair(vars, Pair(vals, Nil))) -> Def(tag_parse vars, tag_parse vals) 
   | Pair(Symbol("begin"),Nil) -> Const(Void)
   | Pair(Symbol("begin"),exps) -> parse_seq exps
-  
-  
-  
-  
+
   | Pair(Symbol(x), y) -> Applic(tag_parse (Symbol(x)), (pairs_to_list_map y tag_parse) )
   | _ -> raise X_syntax_error
 
   and parse_lambda x = 
    match x with 
+   | Pair(Symbol(y), body) -> LambdaOpt([], y, parse_seq body)
    | Pair(args,body) -> if(is_proper_list args) then 
                             LambdaSimple(pairs_to_string_list args,parse_seq body)
                         else let args=pairs_to_string_list args in 
                               let mandatory, optional = seperate_list_last args in
                             LambdaOpt(mandatory, optional, parse_seq body)
+   | _ -> raise X_syntax_error
+
 
   and parse_seq exps = 
     let exps = pairs_to_list exps in
@@ -159,7 +163,7 @@ let reserved_word_list =
 
 (* work on the tag parser starts here *)
 
-let tag_parse_expressions sexpr = raise X_not_yet_implemented;;
+let tag_parse_expressions sexpr = List.map tag_parse sexpr
 
   
 end;; (* struct Tag_Parser *)
