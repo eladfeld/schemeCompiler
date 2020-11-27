@@ -5,16 +5,16 @@ type constant =
   | Void
 
 type expr =
-  | Const of constant
-  | Var of string
-  | If of expr * expr * expr
-  | Seq of expr list
-  | Set of expr * expr
-  | Def of expr * expr
-  | Or of expr list
-  | LambdaSimple of string list * expr
-  | LambdaOpt of string list * string * expr
-  | Applic of expr * (expr list);;
+  | Const of constant           (* done*)
+  | Var of string               (* done*)
+  | If of expr * expr * expr    (* done*)
+  | Seq of expr list  
+  | Set of expr * expr          (* done*)
+  | Def of expr * expr          (* done*)
+  | Or of expr list             (* done*)
+  | LambdaSimple of string list * expr(* done*)
+  | LambdaOpt of string list * string * expr(* done*)
+  | Applic of expr * (expr list);;    (* done*)
 
 let rec expr_eq e1 e2 =
   match e1, e2 with
@@ -60,7 +60,7 @@ let rec is_proper_list pr =
   | Pair (x,y) -> false;;
 
 
-  (* let rec pairs_to_list_map pr func=
+  let rec pairs_to_list_map pr func=
     match pr with
     | Pair(x,Nil) -> (func x)::[]
     | Pair(x, Pair(y,z)) -> (func x)::(pairs_to_list_map (Pair(y,z)) func)
@@ -68,17 +68,16 @@ let rec is_proper_list pr =
     | Nil -> []
     | _ -> raise X_no_match;;
 
-let pairs_to_list pr = 
-    pairs_to_list_map pr (fun (Symbol(x))->x);; *)
-
 let rec pairs_to_list pr=
   match pr with
-  | Pair(Symbol(x),Nil) -> x::[]
-  | Pair(Symbol(x), Pair(y,z)) -> x::(pairs_to_list (Pair(y,z)) )
-  | Pair(Symbol(x), Symbol(y)) -> x::[y]
+  | Pair(x,Nil) ->  x::[]
+  | Pair(x, Pair(y,z)) -> x::(pairs_to_list (Pair(y,z)))
+  | Pair(x, y) -> x::[y]
   | Nil -> []
   | _ -> raise X_no_match;;
 
+let pairs_to_string_list pr = 
+  pairs_to_list_map pr (fun (Symbol(x))->x);;
 
 let rec seperate_list_last lst = 
   match lst with
@@ -86,31 +85,74 @@ let rec seperate_list_last lst =
   |x::y -> let a, b = seperate_list_last y in x::a, b
 
                   
-  
-  
 let rec tag_parse exp = 
   match exp with
   | Number(x) -> Const(Sexpr(Number(x)))
   | Bool(x) -> Const(Sexpr(Bool(x)))
   | Char(x) -> Const(Sexpr(Char(x)))
   | String(x) -> Const(Sexpr(String(x)))
-  (* | Pair(Symbol("set!"), Pair(var, Pair(val, Nil))) -> Set(tag_parse var, tag_parse val)
-  | Pair(Symbol("define"), Pair(var, Pair(val, Nil))) -> Define(tag_parse var, tag_parse val) *)
-  | Symbol(x) -> Var(x)
+  | Symbol(x) -> if is_Var(x) then Var(x) else raise X_syntax_error
   | Pair(Symbol("quote"), Pair(x, Nil)) -> Const(Sexpr(x))
   | Pair(Symbol("if"), Pair(test, Pair(dit, Pair(dif, Nil)))) -> If(tag_parse test, tag_parse dit, tag_parse dif)
   | Pair(Symbol("if"), Pair(test, Pair(dit,Nil))) -> If(tag_parse test, tag_parse dit, Const(Void))
   | Pair(Symbol("lambda"), x) -> parse_lambda  x
-  (* | Pair(Symbol(x), y) -> Applic(tag_parse x, pairs_to_list  *)
+  | Pair(Symbol("or"), x) -> Or(pairs_to_list_map x tag_parse)
+  | Pair(Symbol("set!"), Pair(vars, Pair(vals, Nil))) -> Set(tag_parse vars, tag_parse vals)
+  | Pair(Symbol("define"), Pair(vars, Pair(vals, Nil))) -> Def(tag_parse vars, tag_parse vals) 
+  | Pair(Symbol("begin"),Nil) -> Const(Void)
+  | Pair(Symbol("begin"),exps) -> parse_seq exps
+  
+  
+  
+  
+  | Pair(Symbol(x), y) -> Applic(tag_parse (Symbol(x)), (pairs_to_list_map y tag_parse) )
   | _ -> raise X_syntax_error
 
   and parse_lambda x = 
    match x with 
    | Pair(args,body) -> if(is_proper_list args) then 
-                            LambdaSimple(pairs_to_list args,tag_parse body)
-                        else let args=pairs_to_list args in 
+                            LambdaSimple(pairs_to_string_list args,tag_parse body)
+                        else let args=pairs_to_string_list args in 
                               let mandatory, optional = seperate_list_last args in
                             LambdaOpt(mandatory, optional, tag_parse body)
+
+  and parse_seq exps = 
+    let exps = pairs_to_list exps in
+      if (List.length exps = 1) then  
+        tag_parse (List.hd exps)
+      else 
+         let parsed = List.map tag_parse exps in
+          let parsed = List.fold_left 
+                        (fun exp acc -> 
+                            match exp with
+                            | Seq(x) -> List.append acc x
+                            | x -> acc::x )
+                        parsed
+                        [] in
+                      
+                        Seq(parsed);;
+
+            
+                        (* 
+                        List.fold_right 
+                          (fun a b ->
+                            let f = (float_of_char a) in
+                            (f +. b ) /. 10.)
+                          ds 
+                          0. 
+                          *)
+            
+            
+            
+            (* List.map 
+                      (fun (exp) -> match exp with 
+                                    | Seq(x) -> x
+                                    | x -> [x]) 
+                      parsed in
+                      Seq(parsed);;  *)
+          
+          
+
                         
    
 
