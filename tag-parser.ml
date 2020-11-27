@@ -111,10 +111,10 @@ let rec tag_parse exp =
   and parse_lambda x = 
    match x with 
    | Pair(args,body) -> if(is_proper_list args) then 
-                            LambdaSimple(pairs_to_string_list args,tag_parse body)
+                            LambdaSimple(pairs_to_string_list args,parse_seq body)
                         else let args=pairs_to_string_list args in 
                               let mandatory, optional = seperate_list_last args in
-                            LambdaOpt(mandatory, optional, tag_parse body)
+                            LambdaOpt(mandatory, optional, parse_seq body)
 
   and parse_seq exps = 
     let exps = pairs_to_list exps in
@@ -123,33 +123,13 @@ let rec tag_parse exp =
       else 
          let parsed = List.map tag_parse exps in
           let parsed = List.fold_left 
-                        (fun exp acc -> 
+                        (fun acc exp-> 
                             match exp with
                             | Seq(x) -> List.append acc x
-                            | x -> acc::x )
-                        parsed
-                        [] in
-                      
-                        Seq(parsed);;
-
-            
-                        (* 
-                        List.fold_right 
-                          (fun a b ->
-                            let f = (float_of_char a) in
-                            (f +. b ) /. 10.)
-                          ds 
-                          0. 
-                          *)
-            
-            
-            
-            (* List.map 
-                      (fun (exp) -> match exp with 
-                                    | Seq(x) -> x
-                                    | x -> [x]) 
-                      parsed in
-                      Seq(parsed);;  *)
+                            | _ -> List.append acc [exp] )
+                         []
+                         parsed in                     
+          Seq(parsed);;
           
           
 
