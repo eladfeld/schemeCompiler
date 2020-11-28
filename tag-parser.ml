@@ -103,6 +103,20 @@ let get_params_vals lst =
   let vals = pairs_to_list_map lst (fun (Pair(param, Pair(vals, _))) -> vals) in
   (params, vals);;
 
+let rec list_to_let_rec_pairs lst =
+  match lst with
+  | [] -> Nil
+  | a::b -> Pair(Pair(a, Pair(Pair(Symbol("quote"), Symbol("whatever")), Nil)), list_to_let_rec_pairs b)
+  | _ -> raise X_no_match
+
+let rec lists_to_let_rec_sets params vals body=
+  match params, vals with
+  | [], [] -> body
+  | a::b, c::d ->  Pair(Pair(Symbol("set!"), Pair(a, Pair(c, Nil))), lists_to_let_rec_sets b d body) 
+  | a::b, [] -> raise X_syntax_error
+  | [], a::b -> raise X_syntax_error
+  | _ -> raise X_no_match
+
 let rec tag_parse exp = 
   match exp with
   | Number(x) -> Const(Sexpr(Number(x)))
@@ -125,7 +139,7 @@ let rec tag_parse exp =
   (* | Pair(Symbol("cond"), Pair(rest,Nil)) -> parse_cond rest  *)
   | Pair(Symbol("let"),  Pair(init,body)) -> parse_let init body
   | Pair(Symbol("let*"), Pair(init,body)) -> parse_let_star init body
-  (* | Pair(Symbol("letrec"), Pair(init,body)) -> parse_letrec init body *)
+  | Pair(Symbol("letrec"), Pair(init,body)) -> parse_letrec init body
   | Pair(Symbol("and"), rest) -> parse_and rest
 
   | Pair(Symbol(x), y) -> Applic(tag_parse (Symbol(x)), (pairs_to_list_map y tag_parse) )
@@ -175,8 +189,9 @@ let rec tag_parse exp =
     | _ -> raise X_syntax_error
 
   and parse_letrec init body =
-    let (paramters,vals) = get_params_vals init in
-    parse_tag (Pair(Symbol("let"), Pair(Pair(x, Nil))))
+    let (params,vals) = get_params_vals init in
+    let params = List.map (fun (x) -> Symbol(x)) params in
+    tag_parse (Pair(Symbol("let") ,Pair(list_to_let_rec_pairs params ,lists_to_let_rec_sets params vals body)))
 
     (* (let-rec ((f1 a) (f2 b) (f3 c)) (+ f1 f2 f3))
 
