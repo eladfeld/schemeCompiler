@@ -6,16 +6,22 @@ type constant =
   | Void
 
 type expr =
-  | Const of constant           (* done*)
-  | Var of string               (* done*)
-  | If of expr * expr * expr    (* done*)
+  | Const of constant    
+  | Var of string             
+  | If of expr * expr * expr  
   | Seq of expr list  
-  | Set of expr * expr          (* done*)
-  | Def of expr * expr          (* done*)
-  | Or of expr list             (* done*)
-  | LambdaSimple of string list * expr(* done*)
-  | LambdaOpt of string list * string * expr(* done*)
-  | Applic of expr * (expr list);;    (* done*)
+  | Set of expr * expr        
+  | Def of expr * expr         
+  | Or of expr list             
+  | LambdaSimple of string list * expr
+  | LambdaOpt of string list * string * expr
+  | Applic of expr * (expr list);;  
+  
+type letexp = Let of expr list * expr list * expr list
+
+(* let unparse_let letExp = 
+    match letExp with
+    | Let(vals,params,body) -> Pair(Symbol("let"), ) *)
 
 let rec expr_eq e1 e2 =
   match e1, e2 with
@@ -86,11 +92,17 @@ let rec seperate_list_last lst =
   |x::y::[] -> x::[] , y
   |x::y -> let a, b = seperate_list_last y in x::a, b
 
-let rec params_vals sxpr = 
-  let parms= 
+let get_params lst = 
+  pairs_to_list_map lst (fun (Pair(Symbol(param), _)) -> param);;
 
-  ((a 1) (b 2) (c 3))
-                  
+let get_vals lst = 
+  pairs_to_list_map lst (fun (Pair(param, Pair(vals, _))) -> vals);;
+
+let get_params_vals lst = 
+  let params = pairs_to_list_map lst (fun (Pair(Symbol(param), _)) -> param) in
+  let vals = pairs_to_list_map lst (fun (Pair(param, Pair(vals, _))) -> vals) in
+  (params, vals);;
+
 let rec tag_parse exp = 
   match exp with
   | Number(x) -> Const(Sexpr(Number(x)))
@@ -110,18 +122,34 @@ let rec tag_parse exp =
   | Pair(Symbol("begin"),Nil) -> Const(Void)
   | Pair(Symbol("begin"),exps) -> parse_seq exps
   | Pair(Symbol("quasiquote"),Pair(rest, Nil)) -> parse_quasiquote rest 
-  | Pair(Symbol("cond"), Pair(rest,Nil)) -> parse_cond rest 
-  | Pair(Symbol("let"), Pair(rest,Nil)) -> parse_let rest
+  (* | Pair(Symbol("cond"), Pair(rest,Nil)) -> parse_cond rest  *)
+  | Pair(Symbol("let"),  Pair(init,body)) -> parse_let init body
+  | Pair(Symbol("let*"), Pair(init,body)) -> parse_let_star init body
+  (* | Pair(Symbol("letrec"), Pair(init,body)) -> parse_letrec init body *)
+  | Pair(Symbol("and"), rest) -> parse_and rest
+
   | Pair(Symbol(x), y) -> Applic(tag_parse (Symbol(x)), (pairs_to_list_map y tag_parse) )
+  | Pair(x,y) -> Applic (tag_parse x, (pairs_to_list_map y tag_parse))
   | _ -> raise X_syntax_error
 
   and parse_quasiquote exps = 
     match exps with
-    | Pair(Symbol("unquote"), Pair(sexp, Nil)) -> parse_tag sexp
+    | Pair(Symbol("unquote"), Pair(sexp, Nil)) -> tag_parse sexp
     | Pair(Symbol("unquote-splicing"),Pair(sexp, Nil) ) -> raise X_syntax_error
-    | Nil -> parse_tag Pair(Symbol("quote") , Pair(Nil,Nil))
-    | Symbol(x) -> parse_tag Pair(Symbol("quote") , Pair(Symbol(x),Nil) )
+    | Nil -> tag_parse (Pair(Symbol("quote") , Pair(Nil,Nil)))
+    | Symbol(x) -> tag_parse (Pair(Symbol("quote") , Pair(Symbol(x),Nil) ))
     (* | Pair( Pair(Symbol("unquote-splicing"), Pair()), B) -> parse_tag Pair(sexpr, B) *)
+
+  and parse_and rest = 
+
+    match rest with 
+    | Nil -> Const(Sexpr(Bool(true)))
+    | Pair(x, Nil) -> tag_parse x
+    | Pair(x,y) -> 
+      let Pair(test,rest) = rest in
+      let _then = Pair(Symbol("and") , rest) in
+      let _else = Bool(false) in
+      tag_parse (Pair(Symbol("if"),Pair(test,Pair(_then,Pair(_else,Nil)))))
 
   and parse_lambda x = 
    match x with 
@@ -132,16 +160,33 @@ let rec tag_parse exp =
                               let mandatory, optional = seperate_list_last args in
                             LambdaOpt(mandatory, optional, parse_seq body)
    | _ -> raise X_syntax_error
+ 
+  and parse_let init body = 
+    let (paramters,vals) = get_params_vals init in
+    let body = parse_seq body in
+    let func = LambdaSimple(paramters,body) in
+    Applic(func ,List.map tag_parse vals)
 
-   and parse_let x = 
-    let paramters = 
-    let body = 
-    let vals = 
-    let func = 
-    Applic(func , vals)
-    match x with
+  and parse_let_star init body =
+    match init with 
+    | Nil -> tag_parse (Pair(Symbol("let"), Pair(Nil, body)))
+    | Pair(x, Pair(y, z)) -> tag_parse (Pair(Symbol("let"), Pair(Pair(x, Nil),Pair(Pair(Symbol("let*"), Pair(Pair(y, z), body)), Nil))))
+    | Pair(x, y) -> tag_parse (Pair(Symbol("let"), Pair(init, body)))
+    | _ -> raise X_syntax_error
 
-   | 
+  and parse_letrec init body =
+    let (paramters,vals) = get_params_vals init in
+    parse_tag (Pair(Symbol("let"), Pair(Pair(x, Nil))))
+
+    (* (let-rec ((f1 a) (f2 b) (f3 c)) (+ f1 f2 f3))
+
+    [f1; f2; f3]
+    [a; b; c]
+    body
+  
+    (let ((f1 'wtv) (f2 'wtv) (f3 'wtv)) (set! f1 a) (set! f2 b) (set! f3 c) body)
+  
+  [exp1; exp2; exp3] -> Pair(Pair (exp1, pair('wtv, nil), pair(exp2, pair('wtv, nil)))) *)
 
 
   and parse_seq exps = 
