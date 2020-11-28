@@ -86,6 +86,10 @@ let rec seperate_list_last lst =
   |x::y::[] -> x::[] , y
   |x::y -> let a, b = seperate_list_last y in x::a, b
 
+let rec params_vals sxpr = 
+  let parms= 
+
+  ((a 1) (b 2) (c 3))
                   
 let rec tag_parse exp = 
   match exp with
@@ -105,9 +109,19 @@ let rec tag_parse exp =
   | Pair(Symbol("define"), Pair(vars, Pair(vals, Nil))) -> Def(tag_parse vars, tag_parse vals) 
   | Pair(Symbol("begin"),Nil) -> Const(Void)
   | Pair(Symbol("begin"),exps) -> parse_seq exps
-
+  | Pair(Symbol("quasiquote"),Pair(rest, Nil)) -> parse_quasiquote rest 
+  | Pair(Symbol("cond"), Pair(rest,Nil)) -> parse_cond rest 
+  | Pair(Symbol("let"), Pair(rest,Nil)) -> parse_let rest
   | Pair(Symbol(x), y) -> Applic(tag_parse (Symbol(x)), (pairs_to_list_map y tag_parse) )
   | _ -> raise X_syntax_error
+
+  and parse_quasiquote exps = 
+    match exps with
+    | Pair(Symbol("unquote"), Pair(sexp, Nil)) -> parse_tag sexp
+    | Pair(Symbol("unquote-splicing"),Pair(sexp, Nil) ) -> raise X_syntax_error
+    | Nil -> parse_tag Pair(Symbol("quote") , Pair(Nil,Nil))
+    | Symbol(x) -> parse_tag Pair(Symbol("quote") , Pair(Symbol(x),Nil) )
+    (* | Pair( Pair(Symbol("unquote-splicing"), Pair()), B) -> parse_tag Pair(sexpr, B) *)
 
   and parse_lambda x = 
    match x with 
@@ -118,6 +132,16 @@ let rec tag_parse exp =
                               let mandatory, optional = seperate_list_last args in
                             LambdaOpt(mandatory, optional, parse_seq body)
    | _ -> raise X_syntax_error
+
+   and parse_let x = 
+    let paramters = 
+    let body = 
+    let vals = 
+    let func = 
+    Applic(func , vals)
+    match x with
+
+   | 
 
 
   and parse_seq exps = 
