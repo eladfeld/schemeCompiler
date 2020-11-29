@@ -87,12 +87,6 @@ let rec seperate_list_last lst =
   |x::y -> let a, b = seperate_list_last y in x::a, b
   |_ -> raise X_syntax_error
 
-let get_params lst = 
-  pairs_to_list_map lst (fun (Pair(Symbol(param), _)) -> param);;
-
-let get_vals lst = 
-  pairs_to_list_map lst (fun (Pair(param, Pair(vals, _))) -> vals);;
-
 let get_params_vals lst = 
   let params = pairs_to_list_map lst (fun (Pair(Symbol(param), _)) -> param) in
   let vals = pairs_to_list_map lst (fun (Pair(param, Pair(vals, _))) -> vals) in
@@ -101,7 +95,7 @@ let get_params_vals lst =
 let rec list_to_let_rec_pairs lst =
   match lst with
   | [] -> Nil
-  | a::b -> Pair(Pair(a, Pair(Pair(Symbol("quote"), Symbol("whatever")), Nil)), list_to_let_rec_pairs b)
+  | a::b -> Pair(Pair(a, Pair(Pair(Symbol("quote"),Pair(Symbol("whatever"), Nil)), Nil)), list_to_let_rec_pairs b)
 
 let rec lists_to_let_rec_sets params vals body=
   match params, vals with
@@ -122,6 +116,7 @@ let rec tag_parse exp =
   | Pair(Symbol("lambda"), x) -> parse_lambda  x
   | Pair(Symbol("or"), sexps ) -> parse_or sexps
   | Pair(Symbol("set!"), Pair(vars, Pair(vals, Nil))) -> Set(tag_parse vars, tag_parse vals)
+  | Pair(Symbol("define"), Pair(Pair(Symbol(name), argl), expr)) -> mit_form_expnder name argl expr
   | Pair(Symbol("define"), Pair(vars, Pair(vals, Nil))) -> Def(tag_parse vars, tag_parse vals) 
   | Pair(Symbol("begin"),sexps) -> parse_begin sexps
   | Pair(Symbol("quasiquote"),Pair(rest, Nil)) -> quasiquote_expander rest 
@@ -219,19 +214,11 @@ and and_expander rest =
   | _ -> raise X_syntax_error
 
           
-          
-
-                        
-   
+and mit_form_expnder name argl expr =
+  tag_parse (Pair(Symbol("define"), Pair(Symbol(name), Pair(Pair(Symbol("lambda"), Pair(argl, expr)), Nil))))
 
 
-
-  
-
-  
-
-
-
+  (* (define name (lambda argl expr) ) *)
 
 module type TAG_PARSER = sig
   val tag_parse_expressions : sexpr list -> expr list
