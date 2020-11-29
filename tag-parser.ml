@@ -17,6 +17,7 @@ type expr =
   | LambdaOpt of string list * string * expr
   | Applic of expr * (expr list);;  
   
+  
 let rec expr_eq e1 e2 =
   match e1, e2 with
   | Const Void, Const Void -> true
@@ -45,6 +46,80 @@ let rec expr_eq e1 e2 =
                        
 exception X_syntax_error;;
 
+
+let unparse_const (const:constant) : sexpr = 
+  match const with 
+  | Sexpr(sexp) -> sexp
+  | Void -> Nil
+
+
+let rec tag_unparse (exp:expr): sexpr = 
+  match exp with 
+  | Const(const) -> unparse_const const
+  | Var(name) -> Symbol(name)
+  | If(test,dit,dif) -> unparse_if test dit dif
+  | Seq(seq) -> unparse_seq seq
+  | Set(name,vl) -> unparse_set name vl
+  | Def(name,vl) -> unparse_def name vl
+  | Or(elements) -> unparse_or elements
+  | LambdaSimple(params,body) -> unparse_LambdaSimple params body
+  | LambdaOpt(mandatory,optional,body) -> unparse_LambdaOpt mandatory optional body
+  | Applic(body, vals) -> unparse_Applic body vals
+  | _ -> raise X_no_match
+
+  and unparse_if test dit dif=
+    Pair(Symbol("if"), Pair(tag_unparse test ,Pair(tag_unparse dit,Pair(tag_unparse dif,Nil))))
+  
+  and unparse_seq seq = 
+    let rec set_pairs exprs =
+      match exprs with
+      | [] -> Nil
+      | expr::[] -> Pair(tag_unparse expr,Nil)
+      | expr::rest_exprs -> Pair(tag_unparse expr,set_pairs rest_exprs) in
+    Pair(Symbol("begin"),set_pairs seq)
+
+  and unparse_set name vl = 
+      Pair(Symbol("set!"),Pair(tag_unparse name,Pair(tag_unparse vl,Nil)))
+
+  and unparse_def name vl = 
+      Pair(Symbol("define"),Pair(tag_unparse name, Pair(tag_unparse vl,Nil)))
+
+  and unparse_or elements = 
+    let rec set_pairs exprs =
+      match exprs with
+      | [] -> Nil
+      | expr::[] -> Pair(tag_unparse expr,Nil)
+      | expr::rest_exprs -> Pair(tag_unparse expr,set_pairs rest_exprs) in
+    Pair(Symbol("or"),set_pairs elements)
+
+  and unparse_LambdaSimple params body =
+    let params = List.map (fun x -> Var(x)) params in
+    let rec set_pairs exprs =
+      match exprs with
+      | [] -> Nil
+      | expr::[] -> Pair(tag_unparse expr,Nil)
+      | expr::rest_exprs -> Pair(tag_unparse expr,set_pairs rest_exprs) in
+    Pair(Symbol("lambda"),Pair(set_pairs params,tag_unparse body))
+  
+  and unparse_LambdaOpt mandatory optional body = raise X_not_yet_implemented
+
+  and unparse_Applic body vals = raise X_not_yet_implemented;;
+  
+
+let unparse_let (params:expr list) (vals:expr list) (body:expr): sexpr =
+  let rec params_n_vals (params:expr list) (vals:expr list) = 
+    if ((List.length params) != (List.length vals)) then
+      raise X_syntax_error 
+    else match params,vals with
+    | [], [] -> Nil
+    | (param::[]), (vl::[]) -> Pair(Pair(tag_unparse param,Pair(tag_unparse vl,Nil)),Nil)
+    | (param::rest_params), (vl::rest_vals) -> Pair(Pair(tag_unparse param,Pair(tag_unparse vl, Nil)), params_n_vals rest_params rest_vals)
+    | _ -> raise X_syntax_error in
+  Pair(Symbol("let"),Pair(params_n_vals params vals,Pair(tag_unparse body,Nil)));;
+
+
+
+
 let is_Var x = 
   let reserved_word_list =
     ["and"; "begin"; "cond"; "define"; "else";
@@ -61,14 +136,13 @@ let rec is_proper_list pr =
   | Pair (x,y) -> false
   | _ -> raise X_syntax_error;;
 
-
-  let rec pairs_to_list_map pr func=
-    match pr with
-    | Pair(x,Nil) -> (func x)::[]
-    | Pair(x, Pair(y,z)) -> (func x)::(pairs_to_list_map (Pair(y,z)) func)
-    | Pair(x, y) -> (func x)::[(func y)]
-    | Nil -> []
-    | _ -> raise X_no_match;;
+let rec pairs_to_list_map pr func=
+  match pr with
+  | Pair(x,Nil) -> (func x)::[]
+  | Pair(x, Pair(y,z)) -> (func x)::(pairs_to_list_map (Pair(y,z)) func)
+  | Pair(x, y) -> (func x)::[(func y)]
+  | Nil -> []
+  | _ -> raise X_no_match;;
 
 let rec pairs_to_list pr=
   match pr with
@@ -92,18 +166,6 @@ let get_params_vals lst =
   let vals = pairs_to_list_map lst (fun (Pair(param, Pair(vals, _))) -> vals) in
   (params, vals);;
 
-let rec list_to_let_rec_pairs lst =
-  match lst with
-  | [] -> Nil
-  | a::b -> Pair(Pair(a, Pair(Pair(Symbol("quote"),Pair(Symbol("whatever"), Nil)), Nil)), list_to_let_rec_pairs b)
-
-let rec lists_to_let_rec_sets params vals body=
-  match params, vals with
-  | [], [] -> body
-  | a::b, c::d ->  Pair(Pair(Symbol("set!"), Pair(a, Pair(c, Nil))), lists_to_let_rec_sets b d body) 
-  | a::b, [] -> raise X_syntax_error
-  | [], a::b -> raise X_syntax_error
-
 let rec tag_parse exp = 
   match exp with
   | Number(x) -> Const(Sexpr(Number(x)))
@@ -120,7 +182,7 @@ let rec tag_parse exp =
   | Pair(Symbol("define"), Pair(vars, Pair(vals, Nil))) -> Def(tag_parse vars, tag_parse vals) 
   | Pair(Symbol("begin"),sexps) -> parse_begin sexps
   | Pair(Symbol("quasiquote"),Pair(rest, Nil)) -> quasiquote_expander rest 
-  (* | Pair(Symbol("cond"), Pair(rest,Nil)) -> parse_cond rest  *)
+  | Pair(Symbol("cond"), rest) -> cond_expander rest  
   | Pair(Symbol("let"),  Pair(init,body)) -> let_expander init body
   | Pair(Symbol("let*"), Pair(init,body)) -> let_star_expander init body
   | Pair(Symbol("letrec"), Pair(init,body)) -> letrec_expander init body
@@ -129,6 +191,7 @@ let rec tag_parse exp =
   | Pair(Symbol(x), y) -> Applic(tag_parse (Symbol(x)), (pairs_to_list_map y tag_parse) )
   | Pair(Pair(Symbol("lambda"),x),y) -> Applic (tag_parse (Pair(Symbol("lambda"),x)), (pairs_to_list_map y tag_parse))
   | _ -> raise X_syntax_error
+
 
 and parse_if sexps =
   match sexps with 
@@ -172,8 +235,104 @@ and parse_begin sexps =
   match sexps with
   | Nil -> Const(Void)
   | exps -> parse_seq exps
+  
+and cond_expander sexpr =
+  let rec ribs_expander ribs =
+    match ribs with
+    | [] -> Nil
+    | _ ->
+    let first::rest = ribs in
+    match first with
+    | Pair(test, Pair(Symbol("=>"), func)) ->   
+      Pair(
+        Symbol("let"),
+        Pair(
+          Pair(
+            Pair(
+              Symbol("value"),
+              Pair(
+                test,
+                Nil
+              )
+            ),
+            Nil
+          ),
+          Pair(
+            Pair(
+              Symbol("f"),
+              Pair(
+                Pair(
+                  Symbol("lambda"),
+                  Pair(
+                    Nil,
+                    Pair(
+                      func, 
+                      Nil
+                    )
+                  )
+                ),
+                Nil
+              )
+            ),
+            Pair(
+              Pair(
+                Symbol("rest"),
+                Pair(
+                  Pair(
+                    Symbol("lambda"),
+                    Pair(
+                      Nil,
+                      Pair(
+                        ribs_expander rest,
+                        Nil
+                      )
+                    )
+                  ),
+                  Nil
+                )
+              ),
+              Pair(
+                Pair(
+                  Symbol("if"),
+                  Pair(
+                    Symbol("value"),
+                    Pair(
+                      Pair(
+                        Pair(
+                          Symbol("f"),
+                          Nil
+                        ),
+                        Pair(
+                          Symbol("value"),
+                          Pair(
+                            Pair(
+                              Symbol("rest"), 
+                              Nil
+                            ),
+                            Nil
+                          ) 
+                        )
+                      ),
+                      Nil
+                    )
+                  )
+                ),
+                Nil
+              )
+            )
+          )
+        )
+      )
+    
+    | Pair(Symbol("else"), seq) ->  (Pair(Symbol("begin"), seq))
+    | Pair(condition, seq) ->  (Pair(Symbol("if"), Pair(condition, Pair(seq, ribs_expander rest))))
+      in
+      let ribs = pairs_to_list sexpr in
+      tag_parse (ribs_expander ribs)
+    
 
 and quasiquote_expander exps = 
+
   match exps with
   | Pair(Symbol("unquote"), Pair(sexp, Nil)) -> tag_parse sexp
   | Pair(Symbol("unquote-splicing"),Pair(sexp, Nil) ) -> raise X_syntax_error
@@ -198,6 +357,16 @@ and let_star_expander init body =
   | _ -> raise X_syntax_error
 
 and letrec_expander init body =
+  let rec list_to_let_rec_pairs lst =
+    match lst with
+    | [] -> Nil
+    | a::b -> Pair(Pair(a, Pair(Pair(Symbol("quote"),Pair(Symbol("whatever"), Nil)), Nil)), list_to_let_rec_pairs b) in
+  let rec lists_to_let_rec_sets params vals body=
+    match params, vals with
+    | [], [] -> body
+    | a::b, c::d ->  Pair(Pair(Symbol("set!"), Pair(a, Pair(c, Nil))), lists_to_let_rec_sets b d body) 
+    | a::b, [] -> raise X_syntax_error
+    | [], a::b -> raise X_syntax_error in
   let (params,vals) = get_params_vals init in
   let params = List.map (fun (x) -> Symbol(x)) params in
   tag_parse (Pair(Symbol("let") ,Pair(list_to_let_rec_pairs params ,lists_to_let_rec_sets params vals body)))
@@ -217,8 +386,10 @@ and and_expander rest =
 and mit_form_expnder name argl expr =
   tag_parse (Pair(Symbol("define"), Pair(Symbol(name), Pair(Pair(Symbol("lambda"), Pair(argl, expr)), Nil))))
 
-
+let tag_parse_string str =
+  tag_parse (List.hd (Reader.read_sexprs str));;
   (* (define name (lambda argl expr) ) *)
+  (* (define f (a b c) (+ a b c)) *)
 
 module type TAG_PARSER = sig
   val tag_parse_expressions : sexpr list -> expr list
@@ -239,3 +410,22 @@ let tag_parse_expressions sexpr = List.map tag_parse sexpr
   
 end;; (* struct Tag_Parser *)
 
+
+(* (pset! (x y) (y x))
+==>
+(let ((val1 y)
+     (val2 x))
+     (set! x val1)
+     (set! y val2)
+)
+
+(pset! (val1 y) (y val1))
+==>
+(let ((val1 y)
+      (val2 val1))
+     (set! val1 val1)
+     (set! y val2)
+)
+
+
+(lambda () x) *)
