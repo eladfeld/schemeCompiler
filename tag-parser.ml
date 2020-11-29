@@ -17,7 +17,7 @@ type expr =
   | LambdaOpt of string list * string * expr
   | Applic of expr * (expr list);;  
   
-  
+
 let rec expr_eq e1 e2 =
   match e1, e2 with
   | Const Void, Const Void -> true
@@ -53,7 +53,7 @@ let unparse_const (const:constant) : sexpr =
   | Void -> Nil
 
 
-let rec tag_unparse (exp:expr): sexpr = 
+let rec tag_unparse exp = 
   match exp with 
   | Const(const) -> unparse_const const
   | Var(name) -> Symbol(name)
@@ -99,11 +99,28 @@ let rec tag_unparse (exp:expr): sexpr =
       | [] -> Nil
       | expr::[] -> Pair(tag_unparse expr,Nil)
       | expr::rest_exprs -> Pair(tag_unparse expr,set_pairs rest_exprs) in
-    Pair(Symbol("lambda"),Pair(set_pairs params,tag_unparse body))
+    Pair(Symbol("lambda"),Pair(set_pairs params,Pair(tag_unparse body,Nil)))
   
-  and unparse_LambdaOpt mandatory optional body = raise X_not_yet_implemented
+  and unparse_LambdaOpt mandatory optional body = 
+  let mandatory = List.map (fun x-> Var(x)) mandatory in
+  let rec set_improper_pairs exprs =
+    match exprs with
+    | [] -> Nil
+    | expr::[] -> tag_unparse expr
+    | expr1:: expr2 ::[] -> Pair(tag_unparse expr1 , tag_unparse expr2)
+    | expr::rest_exprs -> Pair(tag_unparse expr,set_improper_pairs rest_exprs) in
+  match mandatory with
+  | [] -> Pair(Symbol("lambda"),Pair(tag_unparse (Var(optional)),Pair(tag_unparse body,Nil)))
+  | _ -> Pair(Symbol("lambda"),Pair(Pair(set_improper_pairs mandatory,tag_unparse (Var(optional))),Pair(tag_unparse body,Nil)))
+      
 
-  and unparse_Applic body vals = raise X_not_yet_implemented;;
+  and unparse_Applic body vals = 
+    let rec set_pairs exprs =
+      match exprs with
+      | [] -> Nil
+      | expr::[] -> Pair(tag_unparse expr,Nil)
+      | expr::rest_exprs -> Pair(tag_unparse expr,set_pairs rest_exprs) in
+    Pair(tag_unparse body,set_pairs vals);;
   
 
 let unparse_let (params:expr list) (vals:expr list) (body:expr): sexpr =
@@ -197,7 +214,7 @@ and parse_if sexps =
   match sexps with 
   | Pair(test, Pair(dit, Pair(dif, Nil))) -> If(tag_parse test, tag_parse dit, tag_parse dif)
   | Pair(test, Pair(dit,Nil)) -> If(tag_parse test, tag_parse dit, Const(Void))
-  | _ -> raise X_syntax_error
+  | _ -> raise X_no_match
 
 and parse_lambda x = 
   match x with 
@@ -244,93 +261,13 @@ and cond_expander sexpr =
     let first::rest = ribs in
     match first with
     | Pair(test, Pair(Symbol("=>"), func)) ->   
-      Pair(
-        Symbol("let"),
-        Pair(
-          Pair(
-            Pair(
-              Symbol("value"),
-              Pair(
-                test,
-                Nil
-              )
-            ),
-            Nil
-          ),
-          Pair(
-            Pair(
-              Symbol("f"),
-              Pair(
-                Pair(
-                  Symbol("lambda"),
-                  Pair(
-                    Nil,
-                    Pair(
-                      func, 
-                      Nil
-                    )
-                  )
-                ),
-                Nil
-              )
-            ),
-            Pair(
-              Pair(
-                Symbol("rest"),
-                Pair(
-                  Pair(
-                    Symbol("lambda"),
-                    Pair(
-                      Nil,
-                      Pair(
-                        ribs_expander rest,
-                        Nil
-                      )
-                    )
-                  ),
-                  Nil
-                )
-              ),
-              Pair(
-                Pair(
-                  Symbol("if"),
-                  Pair(
-                    Symbol("value"),
-                    Pair(
-                      Pair(
-                        Pair(
-                          Symbol("f"),
-                          Nil
-                        ),
-                        Pair(
-                          Symbol("value"),
-                          Pair(
-                            Pair(
-                              Symbol("rest"), 
-                              Nil
-                            ),
-                            Nil
-                          ) 
-                        )
-                      ),
-                      Nil
-                    )
-                  )
-                ),
-                Nil
-              )
-            )
-          )
-        )
-      )
-    
+          Pair(Symbol "let", Pair(Pair(Pair(Symbol "value", Pair(test, Nil)), Pair(Pair(Symbol "f", Pair(Pair(Symbol "lambda", Pair(Nil, Pair(func, Nil))), Nil)), Pair(Pair(Symbol "rest", Pair(Pair(Symbol "lambda", Pair(Nil, Pair(ribs_expander rest, Nil))), Nil)), Nil))), Pair(Pair(Symbol "if", Pair(Symbol "value", Pair(Pair(Pair(Symbol "f", Nil), Pair(Symbol "value", Nil)), Pair(Pair(Symbol "rest", Nil), Nil)))), Nil)))
     | Pair(Symbol("else"), seq) ->  (Pair(Symbol("begin"), seq))
-    | Pair(condition, seq) ->  (Pair(Symbol("if"), Pair(condition, Pair(seq, ribs_expander rest))))
+    | Pair(condition, seq) ->  (Pair(Symbol("if"), Pair(condition, Pair(Pair(Symbol("begin"), seq), ribs_expander rest))))
       in
       let ribs = pairs_to_list sexpr in
       tag_parse (ribs_expander ribs)
     
-
 and quasiquote_expander exps = 
 
   match exps with
