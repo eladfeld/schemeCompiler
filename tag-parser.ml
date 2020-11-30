@@ -84,7 +84,9 @@ let rec pairs_to_list pr=
   | _ -> raise X_no_match;;
 
 let pairs_to_string_list pr =  
-  pairs_to_list_map pr (fun (Symbol(x))->x);;
+  pairs_to_list_map pr (fun y -> match y with
+                                 | Symbol(x) -> x
+                                 | _ -> raise X_no_match);;
 
 
 let rec seperate_list_last lst = 
@@ -94,8 +96,12 @@ let rec seperate_list_last lst =
   |_ -> raise X_syntax_error
 
 let get_params_vals lst = 
-  let params = pairs_to_list_map lst (fun (Pair(Symbol(param), _)) -> param) in
-  let vals = pairs_to_list_map lst (fun (Pair(param, Pair(vals, _))) -> vals) in
+  let params = pairs_to_list_map lst (fun x ->match x with 
+                                              | (Pair(Symbol(param), _)) -> param
+                                              | _ -> raise  X_syntax_error) in
+  let vals = pairs_to_list_map lst (fun x -> match x with 
+                                             | (Pair(param, Pair(vals, _))) -> vals
+                                             | _ -> raise X_syntax_error ) in
   (params, vals);;
   
 let rec list_to_pairs lst = 
@@ -177,12 +183,12 @@ and cond_expander sexpr =
       let rec ribs_expander ribs =
         match ribs with
         | [] -> (Pair(Symbol("begin"),Nil))
-        | _ -> let first::rest = ribs in
-          match first with
-          | Pair(test, Pair(Symbol("=>"), func)) -> apply_cond_rib test func rest
-          | Pair(Symbol("else"), seq) -> (Pair(Symbol("begin"), seq))
-          | Pair(test, seq) ->  (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"), seq), Pair(ribs_expander rest,Nil))))) 
-          | _ -> raise X_syntax_error
+        | first::rest ->
+            match first with
+            | Pair(test, Pair(Symbol("=>"), func)) -> apply_cond_rib test func rest
+            | Pair(Symbol("else"), seq) -> (Pair(Symbol("begin"), seq))
+            | Pair(test, seq) ->  (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"), seq), Pair(ribs_expander rest,Nil))))) 
+            | _ -> raise X_syntax_error
   
       and apply_cond_rib test func rest = 
         match rest with
@@ -237,8 +243,7 @@ and and_expander rest =
   match rest with 
   | Nil -> Const(Sexpr(Bool(true)))
   | Pair(x, Nil) -> tag_parse x
-  | Pair(x,y) -> 
-    let Pair(test,rest) = rest in
+  | Pair(test,rest) -> 
     let _then = Pair(Symbol("and") , rest) in
     let _else = Bool(false) in
     tag_parse (Pair(Symbol("if"),Pair(test,Pair(_then,Pair(_else,Nil)))))
