@@ -92,6 +92,12 @@ let get_params_vals lst =
   let params = pairs_to_list_map lst (fun (Pair(Symbol(param), _)) -> param) in
   let vals = pairs_to_list_map lst (fun (Pair(param, Pair(vals, _))) -> vals) in
   (params, vals);;
+  
+let rec list_to_pairs lst = 
+  match lst with 
+  | a::[] -> Pair(a, Nil)
+  | a::b -> Pair(a, list_to_pairs b);;
+
 
 let rec tag_parse exp = 
   match exp with
@@ -114,11 +120,9 @@ let rec tag_parse exp =
   | Pair(Symbol("let*"), Pair(init,body)) -> let_star_expander init body
   | Pair(Symbol("letrec"), Pair(init,body)) -> letrec_expander init body
   | Pair(Symbol("and"), rest) -> and_expander rest
-
-  | Pair(Symbol(x), y) -> Applic(tag_parse (Symbol(x)), (pairs_to_list_map y tag_parse) )
-  | Pair(Pair(Symbol("lambda"),x),y) -> Applic (tag_parse (Pair(Symbol("lambda"),x)), (pairs_to_list_map y tag_parse))
-  | _ -> raise X_syntax_error
-
+  | Pair(Symbol("pset!"), rest) -> pset_expander rest
+  | Pair(x, y) -> Applic(tag_parse x, (pairs_to_list_map y tag_parse) )
+  | _ -> raise X_no_match
 
 and parse_if sexps =
   match sexps with 
@@ -166,7 +170,7 @@ and parse_begin sexps =
 and cond_expander sexpr =
   let rec ribs_expander ribs =
     match ribs with
-    | [] -> 
+    | [] -> (Pair(Symbol("begin"),Nil))
     | _ ->  
       let first::rest = ribs in
       match first with
@@ -174,12 +178,10 @@ and cond_expander sexpr =
       | Pair(Symbol("else"), seq) -> else_rib_expander seq
       | Pair(test, seq) ->  regular_rib_expander test seq rest
   and else_rib_expander seq = (Pair(Symbol("begin"), seq))
-  and regular_rib_expander test seq rest_ribs =  (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"), seq), ribs_expander rest_ribs))))
+  and regular_rib_expander test seq rest_ribs =  (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"), seq), Pair(ribs_expander rest_ribs,Nil)))))
   and fapply_rib_expander test func rest_ribs = 
     match rest_ribs with
-                                                                                                                                                                      
-    | [] -> Pair(Symbol "let", Pair(Pair(Pair(Symbol "value", Pair(test, Nil)), Pair(Pair(Symbol "f", Pair(Pair(Symbol "lambda", Pair(Nil, Pair(func, Nil))), Nil)), Pair(Pair(Symbol "rest", Pair(Symbol("begin"), Nil)), Nil))), Pair(Pair(Symbol "if", Pair(Symbol "value", Pair(Pair(Pair(Symbol "f", Nil), Pair(Symbol "value", Nil)), Pair(Pair(Symbol "rest", Nil), Nil)))), Nil)))
-    | _ -> Pair(Symbol "let", Pair(Pair(Pair(Symbol "value", Pair(test, Nil)), Pair(Pair(Symbol "f", Pair(Pair(Symbol "lambda", Pair(Nil, Pair(func, Nil))), Nil)), Pair(Pair(Symbol "rest", Pair(Pair(Symbol "lambda", Pair(Nil, Pair(ribs_expander rest_ribs, Nil))), Nil)), Nil))), Pair(Pair(Symbol "if", Pair(Symbol "value", Pair(Pair(Pair(Symbol "f", Nil), Pair(Symbol "value", Nil)), Pair(Pair(Symbol "rest", Nil), Nil)))), Nil)))
+    | _ -> Pair(Symbol "let", Pair(Pair(Pair(Symbol "value", Pair(test, Nil)), Pair(Pair(Symbol "f", Pair(Pair(Symbol "lambda", Pair(Nil, func)), Nil)), Pair(Pair(Symbol "rest", Pair(Pair(Symbol "lambda", Pair(Nil, Pair(ribs_expander rest_ribs, Nil))), Nil)), Nil))), Pair(Pair(Symbol "if", Pair(Symbol "value", Pair(Pair(Pair(Symbol "f", Nil), Pair(Symbol "value", Nil)), Pair(Pair(Symbol "rest", Nil), Nil)))), Nil)))
       in
       let ribss = pairs_to_list sexpr in
       tag_parse (ribs_expander ribss)
@@ -239,10 +241,35 @@ and and_expander rest =
 and mit_form_expnder name argl expr =
   tag_parse (Pair(Symbol("define"), Pair(Symbol(name), Pair(Pair(Symbol("lambda"), Pair(argl, expr)), Nil))))
 
+and pset_expander rest = 
+    let rec init_ribs params vals index =
+      match params,vals with
+      | param::[] , vl::[] -> Pair(Symbol("arg" ^ (string_of_int index)), Pair(Pair(Pair(Symbol("lambda"), Pair(Pair(Symbol("vl"), Nil), Pair(Pair(Symbol "lambda", Pair(Nil, Pair(Pair(Symbol "set!",
+                              Pair(Symbol(param), Pair(Symbol("vl"), Nil))), Nil))), Nil))), Pair(vl, Nil)), Nil))::[]
+      | param::rest_params , vl::rest_vals -> Pair(Symbol ("arg" ^ (string_of_int index)), Pair(Pair(Pair(Symbol "lambda", Pair(Pair(Symbol "vl", Nil), Pair(Pair(Symbol "lambda", Pair(Nil, Pair(Pair(Symbol "set!",
+                                             Pair(Symbol(param), Pair(Symbol "vl", Nil))), Nil))), Nil))), Pair(vl, Nil)), Nil)) :: (init_ribs rest_params rest_vals (index+1))
+      
+      | _ -> raise X_syntax_error in
+
+    let rec body_expr params index = 
+      match params with 
+      | param::[] -> Pair(Symbol ("arg"^(string_of_int index)), Nil)::[]
+      | param::rest_params -> Pair(Symbol ("arg"^(string_of_int index)), Nil) :: (body_expr rest_params (index+1))
+      | _ -> raise X_syntax_error in
+
+    let params, vals = get_params_vals rest in
+    let init = init_ribs params vals 1 in 
+    let body_expressions = body_expr params 1 in
+    let init = list_to_pairs init in
+    let body_expressions = list_to_pairs body_expressions in
+    tag_parse (Pair(Symbol("let"), Pair(init, body_expressions )));;
+ 
+    
+(* (pset! (x y) (y x) ) *)
+(* (Pair(Symbol("pset!"), rest)) *)
 let tag_parse_string str =
   tag_parse (List.hd (Reader.read_sexprs str));;
-  (* (define name (lambda argl expr) ) *)
-  (* (define f (a b c) (+ a b c)) *)
+ 
 
 module type TAG_PARSER = sig
   val tag_parse_expressions : sexpr list -> expr list
