@@ -265,8 +265,8 @@ and cond_expander sexpr =
     | Pair(Symbol("else"), seq) ->  (Pair(Symbol("begin"), seq))
     | Pair(condition, seq) ->  (Pair(Symbol("if"), Pair(condition, Pair(Pair(Symbol("begin"), seq), ribs_expander rest))))
       in
-      let ribs = pairs_to_list sexpr in
-      tag_parse (ribs_expander ribs)
+      let ribss = pairs_to_list sexpr in
+      tag_parse (ribs_expander ribss)
     
 and quasiquote_expander exps = 
 
