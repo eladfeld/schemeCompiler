@@ -83,8 +83,9 @@ let rec pairs_to_list pr=
   | Nil -> []
   | _ -> raise X_no_match;;
 
-let pairs_to_string_list pr = 
+let pairs_to_string_list pr =  
   pairs_to_list_map pr (fun (Symbol(x))->x);;
+
 
 let rec seperate_list_last lst = 
   match lst with
@@ -100,7 +101,8 @@ let get_params_vals lst =
 let rec list_to_pairs lst = 
   match lst with 
   | a::[] -> Pair(a, Nil)
-  | a::b -> Pair(a, list_to_pairs b);;
+  | a::b -> Pair(a, list_to_pairs b)
+  | [] -> raise X_syntax_error
 
 let rec tag_parse exp = 
   match exp with
@@ -170,16 +172,22 @@ and parse_begin sexps =
   match sexps with
   | Nil -> Const(Void)
   | exps -> parse_seq exps
-  
+   
 and cond_expander sexpr =
       let rec ribs_expander ribs =
         match ribs with
         | [] -> (Pair(Symbol("begin"),Nil))
         | _ -> let first::rest = ribs in
-    match first with
-    | Pair(test, Pair(Symbol("=>"), func)) -> Pair(Symbol "let", Pair(Pair(Pair(Symbol "value", Pair(test, Nil)), Pair(Pair(Symbol "f", Pair(Pair(Symbol "lambda", Pair(Nil, func)), Nil)), Pair(Pair(Symbol "rest", Pair(Pair(Symbol "lambda", Pair(Nil, Pair(ribs_expander rest, Nil))), Nil)), Nil))), Pair(Pair(Symbol "if", Pair(Symbol "value", Pair(Pair(Pair(Symbol "f", Nil), Pair(Symbol "value", Nil)), Pair(Pair(Symbol "rest", Nil), Nil)))), Nil)))
-    | Pair(Symbol("else"), seq) -> (Pair(Symbol("begin"), seq))
-    | Pair(test, seq) ->  (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"), seq), Pair(ribs_expander rest,Nil))))) 
+          match first with
+          | Pair(test, Pair(Symbol("=>"), func)) -> apply_cond_rib test func rest
+          | Pair(Symbol("else"), seq) -> (Pair(Symbol("begin"), seq))
+          | Pair(test, seq) ->  (Pair(Symbol("if"), Pair(test, Pair(Pair(Symbol("begin"), seq), Pair(ribs_expander rest,Nil))))) 
+          | _ -> raise X_syntax_error
+  
+      and apply_cond_rib test func rest = 
+        match rest with
+        | [] -> Pair(Symbol "let",Pair(Pair(Pair(Symbol "value", Pair(test, Nil)), Pair(Pair(Symbol "f", Pair(Pair(Symbol "lambda", Pair(Nil, func)), Nil)), Nil)), Pair(Pair(Symbol "if", Pair(Symbol "value", Pair(Pair(Pair(Symbol "f", Nil), Pair(Symbol "value", Nil)), Nil))), Nil)))
+        | _ ->  Pair(Symbol "let",Pair(Pair(Pair(Symbol "value", Pair(test, Nil)), Pair(Pair(Symbol "f", Pair(Pair(Symbol "lambda", Pair(Nil, func)), Nil)), Pair(Pair(Symbol "rest", Pair(Pair(Symbol "lambda", Pair(Nil, Pair(ribs_expander rest, Nil))), Nil)), Nil))), Pair(Pair(Symbol "if", Pair(Symbol "value", Pair(Pair(Pair(Symbol "f", Nil), Pair(Symbol "value", Nil)), Pair(Pair(Symbol "rest", Nil), Nil)))), Nil)))
   in
   let ribss = pairs_to_list sexpr in
   tag_parse (ribs_expander ribss)
