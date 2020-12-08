@@ -99,9 +99,6 @@ let rec annotate_lexical e env =
   | Var(x) -> Var'(make_var x env)
   | _ -> raise X_syntax_error;;
 
-let anottate x = 
-    annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) [];;
-
 let rec annotate_TC expr in_tp = 
   match expr with 
   | Const'(x) -> Const'(x)
@@ -109,7 +106,7 @@ let rec annotate_TC expr in_tp =
   | If'(test,dit,dif) -> If'(annotate_TC test false, annotate_TC dit in_tp, annotate_TC dif in_tp)
   | Seq'(seq) -> Seq'(List.mapi (fun index expr -> if (index == ((List.length seq) -1)) then annotate_TC expr in_tp else annotate_TC expr false) seq)
   | Set'(var,vl) -> Set'(var, annotate_TC vl false)
-  | Def'(var,vl) ->Def'(var, annotate_TC vl in_tp)
+  | Def'(var,vl) ->Def'(var, annotate_TC vl false)
   | Or'(ors) -> Or'(List.mapi (fun index expr -> if (index == ((List.length ors) -1)) then annotate_TC expr in_tp else annotate_TC expr false) ors)
   | LambdaSimple'(params, body) -> LambdaSimple'(params, annotate_TC body true)
   | LambdaOpt'(mandatory, optional, body) -> LambdaOpt'(mandatory, optional, annotate_TC body true)
@@ -119,6 +116,65 @@ let rec annotate_TC expr in_tp =
     else 
       Applic'(annotate_TC body false, List.map (fun arg -> annotate_TC arg false ) args)
   | _ -> raise X_no_match;;  
+
+  let rec find_read_write  exp depth =
+    let read = [] in
+    let write = [] in
+    match exp with
+    | Const'(x) -> read,write
+    | If'(test,dit,dif) ->  if_read_write test dit dif depth
+    (* | Seq'(x) -> *)
+    | LambdaSimple'(params,body) -> find_read_write body (depth + 1)
+    | LambdaOpt'(mandatory, optional, body) -> find_read_write body (depth + 1)
+    |
+    | 
+
+
+    and if_read_write test dit dif depth = 
+      let test_read, test_write = find_read_write test depth in
+      let dit_read, dit_write = find_read_write dit depth in
+      let dif_read, dif_write = find_read_write dif depth in
+      test_read::dit_read::dif_read, test_write::dit_write::dif_write;;
+
+
+    | Var'(VarBound(name, major, minor)) -> if (major - 1) == depth then name::read, write
+    | Set'(VarBound(name, major, minor), _) -> if (major - 1) == depth then read, name::write
+
+
+    (*
+  (lambda (x y z)
+    ->>>> 0
+    (lambda () 1 (lambda ()  varbound(z, 1, 2))
+    (lambda (z)  (lambda ()  (set! varbound(z, 0, 0) 1))
+  )
+
+*)
+  let apply_box expr =
+    let read_writes = find_read_write expr 0
+
+
+    (* (lambda () (if a b c)) *)
+
+  let rec box_set? e =
+    match e with
+    | Const'(x) -> Const'(x)
+    | Var'(var) -> Var'(var)
+    | If'(test,dit,dif) -> If'(box_set? test,box_set? dit, box_set? dif)
+    | Seq'(seq) -> Seq'(List.map box_set? seq)
+    | Set'(var,vl) -> Set'(box_set? var, box_set? vl)
+    | Def'(var,vl) -> Def'(box_set? var, box_set? vl)
+    | Or'(ors) -> Or'(List.map box_set? ors)
+    | LambdaSimple'(params, body) -> LambdaSimple'(params,apply_box body)
+    | LambdaOpt'(mandatory, optional, body) ->  LambdaOpt'(mandatory,optional, apply_box body)
+    | Applic'(body, args) -> Applic'(box_set? body, List.map box_set? args)
+    | ApplicTP'(body,args) -> ApplicTP'(box_set? body, List.map box_set? args)
+    | _ -> raise X_no_match;;  
+    
+
+
+
+    
+
   
   
   let tp_test_string x = 
@@ -158,3 +214,52 @@ let run_semantics expr =
 end;; (* struct Semantics *)
 
 
+
+
+(* (lambda (x)
+ --->
+    (lambda (x) x (lambda () (set! x 3))
+    (lambda () x))
+*)
+
+(*
+  (lambda (x y z)
+  
+    (lambda (z)  (lambda ()  z)
+    (lambda (z)  (lambda ()  (set! z 1))
+  )
+
+*)
+
+(*  
+major
+
+(lambda (x)
+  (lambda (z) 
+    (set! x (+ z 1)))
+    (lambda (w) z))
+
+
+(lambda (x)
+   (list 
+   (set! x (+ x 1))
+   (lambda () x)))
+
+
+(lambda (x) 
+    (list 
+      (lambda () (set! x (+ x 1))) 
+      (lambda () x)))
+
+
+(lambda (x)
+  (lambda () x)
+  (lambda (y) (set! x (+ x y))))
+
+
+(lambda (x)
+    (set! x (+ x 1))
+    (lambda (y) (+ x y)))
+
+
+    seq [[] []] *)

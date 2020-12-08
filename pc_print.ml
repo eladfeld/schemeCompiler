@@ -235,7 +235,10 @@ let print_exprs exprs =
 let exprs = List.map untag exprs in
 Printf.printf "%s\n" (String.concat "\n" exprs);;
 
-
+let print_expr expr = 
+  let expr = List.map untag [expr] in
+  Printf.printf "%s\n" (String.concat "\n" expr);;
+  
 let test_string nt str =
   let (e, s) = (nt (string_to_list str)) in
   (e, (Printf.sprintf "->[%s]" (list_to_string s)));;
