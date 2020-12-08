@@ -108,7 +108,7 @@ let rec annotate_TC expr in_tp =
   | Var'(var) -> Var'(var)
   | If'(test,dit,dif) -> If'(annotate_TC test false, annotate_TC dit in_tp, annotate_TC dif in_tp)
   | Seq'(seq) -> Seq'(List.mapi (fun index expr -> if (index == ((List.length seq) -1)) then annotate_TC expr in_tp else annotate_TC expr false) seq)
-  | Set'(var,vl) -> Set'(var, annotate_TC vl in_tp)
+  | Set'(var,vl) -> Set'(var, annotate_TC vl false)
   | Def'(var,vl) ->Def'(var, annotate_TC vl in_tp)
   | Or'(ors) -> Or'(List.mapi (fun index expr -> if (index == ((List.length ors) -1)) then annotate_TC expr in_tp else annotate_TC expr false) ors)
   | LambdaSimple'(params, body) -> LambdaSimple'(params, annotate_TC body true)
