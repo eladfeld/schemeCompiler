@@ -106,11 +106,11 @@ let rec annotate_TC expr in_tp =
   match expr with 
   | Const'(x) -> Const'(x)
   | Var'(var) -> Var'(var)
-  | If'(test,dit,dif) -> If'(annotate_TC test in_tp, annotate_TC dit in_tp, annotate_TC dif in_tp)
-  | Seq'(seq) -> Seq'(List.map (fun x -> annotate_TC x in_tp) seq)
+  | If'(test,dit,dif) -> If'(annotate_TC test false, annotate_TC dit in_tp, annotate_TC dif in_tp)
+  | Seq'(seq) -> Seq'(List.mapi (fun index expr -> if (index == ((List.length seq) -1)) then annotate_TC expr in_tp else annotate_TC expr false) seq)
   | Set'(var,vl) -> Set'(var, annotate_TC vl in_tp)
   | Def'(var,vl) ->Def'(var, annotate_TC vl in_tp)
-  | Or'(ors) -> Or'(List.map (fun x -> annotate_TC x in_tp) ors)
+  | Or'(ors) -> Or'(List.mapi (fun index expr -> if (index == ((List.length ors) -1)) then annotate_TC expr in_tp else annotate_TC expr false) ors)
   | LambdaSimple'(params, body) -> LambdaSimple'(params, annotate_TC body true)
   | LambdaOpt'(mandatory, optional, body) -> LambdaOpt'(mandatory, optional, annotate_TC body true)
   | Applic'(body, args) -> 
@@ -121,9 +121,13 @@ let rec annotate_TC expr in_tp =
   | _ -> raise X_no_match;;  
   
   
-  let tp_test x = 
-    annotate_TC (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) []);;
+  let tp_test_string x = 
+    annotate_TC (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) []) false;;
 
+  let lexical_test_string x =
+    annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) [];;
+  
+  
     
 module type SEMANTICS = sig
   val run_semantics : expr -> expr'
@@ -139,9 +143,12 @@ let annotate_lexical_addresses e =
   annotate_lexical e [];;
 
 
-let annotate_tail_calls e = raise X_not_yet_implemented;;
+let annotate_tail_calls e = annotate_TC e false;;
 
-let box_set e = raise X_not_yet_implemented;;
+
+(* implement!!!!!! *)
+let box_set e = e;; 
+
 
 let run_semantics expr =
   box_set
