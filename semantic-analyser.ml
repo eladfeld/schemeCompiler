@@ -117,66 +117,73 @@ let rec annotate_TC expr in_tp =
       Applic'(annotate_TC body false, List.map (fun arg -> annotate_TC arg false ) args)
   | _ -> raise X_no_match;;  
 
-  let rec find_read_write  exp depth =
-    let read = [] in
-    let write = [] in
+
+  let rec find_read exp depth = 
     match exp with
-    | Const'(x) -> read,write
-    | If'(test,dit,dif) ->  if_read_write test dit dif depth
-    (* | Seq'(x) -> *)
-    | LambdaSimple'(params,body) -> find_read_write body (depth + 1)
-    | LambdaOpt'(mandatory, optional, body) -> find_read_write body (depth + 1)
-    |
-    | 
-
-
-    and if_read_write test dit dif depth = 
-      let test_read, test_write = find_read_write test depth in
-      let dit_read, dit_write = find_read_write dit depth in
-      let dif_read, dif_write = find_read_write dif depth in
-      test_read::dit_read::dif_read, test_write::dit_write::dif_write;;
-
-
-    | Var'(VarBound(name, major, minor)) -> if (major - 1) == depth then name::read, write
-    | Set'(VarBound(name, major, minor), _) -> if (major - 1) == depth then read, name::write
+    | Const'(x) -> []
+    | If'(test,dit,dif) ->  if_read test dit dif depth
+    | LambdaSimple'(params,body) -> find_read body (depth + 1)
+    | LambdaOpt'(mandatory, optional, body) -> find_read body (depth + 1)
+    | Or'(ors) -> List.fold_left (fun (acc, exp) -> (List.append (find_read exp depth) acc) ) [] ors
+    | Set'(_,vl) -> find_read vl depth
+    | Seq'(seq) ->  List.fold_left (fun (acc, exp) -> List.append (find_read exp depth) acc ) [] seq
+    | Def'(_,vl) -> find_read vl
+    | Applic'(body,args) -> List.append (find_read body) (List.fold_left (fun (acc, exp) -> List.append (find_read exp depth) acc ) [] args)
+    | ApplicTP'(body,args) -> List.append (find_read body) (List.fold_left (fun (acc, exp) -> List.append (find_read exp depth) acc ) [] args)
+    | Var'(VarFree(name)) -> []
+    | Var'(VarParam(name,minor)) -> if (depth == 0) then [name] else []
+    | Var'(VarBound(name,major,minor)) -> if (depth - 1 == major) then [name] else []
+    | _ -> []
 
 
     (*
-  (lambda (x y z)
-    ->>>> 0
-    (lambda () 1 (lambda ()  varbound(z, 1, 2))
-    (lambda (z)  (lambda ()  (set! varbound(z, 0, 0) 1))
-  )
+      (lambda (x)
+      ->>
+        (list 
+          (x)
+          (lambda () (set! vb:0:0x 1))
+        )
+      )
+    *)
+    (* 
+    (lambda (x) 
+      (list 
+        (lambda() x lambda() x)
+        (lambda(y (set! x y)))))
+    
+    *)
+    and if_read test dit dif depth = 
+      let test_read = find_read depth in
+      let dit_read = find_read dit depth in
+      let dif_read = find_read dif depth in
+      test_read::dit_read::dif_read;;
 
-*)
+
+
+  let rec find_read_write  exp  =
+    let read = find_read exp 0 in 
+    (* let write = find_write exp 0  *)
+      read;;
+  
   let apply_box expr =
-    let read_writes = find_read_write expr 0
+    let popo = find_read_write expr 0 in (Var'(VarFree("x")));;
 
 
-    (* (lambda () (if a b c)) *)
-
-  let rec box_set? e =
+  let rec check_box_set e =
     match e with
     | Const'(x) -> Const'(x)
     | Var'(var) -> Var'(var)
-    | If'(test,dit,dif) -> If'(box_set? test,box_set? dit, box_set? dif)
-    | Seq'(seq) -> Seq'(List.map box_set? seq)
-    | Set'(var,vl) -> Set'(box_set? var, box_set? vl)
-    | Def'(var,vl) -> Def'(box_set? var, box_set? vl)
-    | Or'(ors) -> Or'(List.map box_set? ors)
+    | If'(test,dit,dif) -> If'(check_box_set test,check_box_set dit, check_box_set dif)
+    | Seq'(seq) -> Seq'(List.map check_box_set seq)
+    | Set'(var,vl) -> Set'(check_box_set var, check_box_set vl)
+    | Def'(var,vl) -> Def'(check_box_set var, check_box_set vl)
+    | Or'(ors) -> Or'(List.map check_box_set ors)
     | LambdaSimple'(params, body) -> LambdaSimple'(params,apply_box body)
     | LambdaOpt'(mandatory, optional, body) ->  LambdaOpt'(mandatory,optional, apply_box body)
-    | Applic'(body, args) -> Applic'(box_set? body, List.map box_set? args)
-    | ApplicTP'(body,args) -> ApplicTP'(box_set? body, List.map box_set? args)
+    | Applic'(body, args) -> Applic'(check_box_set body, List.map check_box_set args)
+    | ApplicTP'(body,args) -> ApplicTP'(check_box_set body, List.map check_box_set args)
     | _ -> raise X_no_match;;  
     
-
-
-
-    
-
-  
-  
   let tp_test_string x = 
     annotate_TC (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) []) false;;
 
