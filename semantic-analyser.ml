@@ -180,7 +180,6 @@ let rec annotate_TC expr in_tp =
       let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
       let LambdaSimple'(params,body) = expr_tag in
       find_read body 0 [] params;;
-            
 
       let find_write_test str =
         let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
@@ -197,34 +196,79 @@ let rec annotate_TC expr in_tp =
       | first::rest -> if (exist first rest) then (remove_dups rest) else first::(remove_dups rest)
       | [] -> [];;
   
-  let find_read_write params body  =
-    let read = remove_dups (find_read  body 0  [] params) in 
-    let write =remove_dups (find_write body 0  [] params) in
+  let find_read_write params rib  =
+    let read = remove_dups (find_read  rib 0  [] params) in 
+    let write =remove_dups (find_write rib 0  [] params) in
     (read, write);; 
 
 
-  let rec get_need_to_be_boxed_vars exp =
-    match exp with
-    (* | Const'(x) -> []
+  let var_match var1 env1 var2 env2 =
+    match var1, var2 with
+    | VarParam(name1,minor1) , VarBound(name2,major2,minor2) -> if ((name1 = name2) & (!common_ancestor(env1,env2))) then true else false
+    | VarParam(name1, minor1), VarParam(name2, minor2) -> if ((name1 = name2) & (!common_ancestor(env1,env2))) then true else false
+    | VarBound(name1, major1, minor1), VarParam(name2,minor2) -> if ((name1 = name2) & (!common_ancestor(env1,env2))) then true else false
+    | VarBound(name1, major1, minor1), VarBound(name2, major2, minor2) -> if ((name1 = name2) & (!common_ancestor(env1,env2))) then true else false;;
+
+  let rec get_need_to_be_boxed_vars params body =
+    match body with
+    | Const'(x) -> []
     | Var'(var) ->  []
     | If'(test,dit,dif) -> if_ribs_with_box test dit dif
-    | Seq'(seq) -> seq_ribs_with_box seq
+    | Seq'(seq) -> (* seq_ribs_with_box seq params *) []
     | Set'(var,vl) -> []
     | Def'(var,vl) -> []
     | Or'(ors) -> []
     | LambdaSimple'(params, body) ->  
     | LambdaOpt'(mandatory, optional, body) -> 
-    | Applic'(body, args) -> 
-    | ApplicTP'(body,args) ->  *)
-    | _ -> raise X_no_match;;
-    
+    | Applic'(body, args) -> applic_with_box body args params
+    | ApplicTP'(body,args) ->   
+    | _ -> raise X_no_match
+
+    (* and seq_ribs_with_box seq params=
+      let vars = List.map (fun (rib) find_read_write params rib) seq in *)
+    and applic_with_box body args params =
+      let body_read  = find_read  body 0 [] params in
+      let body_write = find_write body 0 [] params in
+      let args_read  = List.map (fun arg -> find_read  arg 0 [] params) args in
+      let args_write = List.map (fun arg -> find_write arg 0 [] params) args in
+      let all_read  = body_read ::args_read  in
+      let all_write = body_write::args_write in
+      List.filter (fun (Var'(var1),env1) -> List.exists (fun (Var'(var2),env2) ->  (var_match var1 env1 var2 env2) ) all_write) all_read
+      List.map (fun rib_read_list -> List.map (fun (Var'(var1),env1)-> ) rib_read_list ) all_read
+      
+       
+     r: [(Var1,env) ; (Var2, env)]
+     w: 
+
+     
+      (lambda (x) 
+        ( (lambda (y) x) (set! x 1) )
+      )
+
+      (lambda (x)
+        (list (lambda () x) (lambda () (set! x 1)))
+      )
+
+      apply_box:
+      params: ["x"]
+      body: ((lambda (y) x) (set! x 1))
+
+      applic_with_box:
+      body: (lambda (y) x)  r:[vb(x):0,0]
+      args: (set! x 1)      w:[vp(x):0]
+      params: ["x"]
+
+      (lambda (x)
+        ((lambda () (set! x 1)) x)
+      )
     (* (lambda (x) (lambda () (lambda () (lambda () x) (lambda () (set! x 1)) ) ) )
     *)
 
   let rec apply_box params body =
     let need_to_be_boxed = get_need_to_be_boxed_vars params body in
-    match need_to_be_boxed with
-    | [] -> 
+    Const'(Void)
+    (* 1. now box the vars in the tree *)
+    (* 2. make sure to return same expr' as called this function e.g LambdaSimple' / LambdaOpt' *)
 
   let rec reach_lambda e =
     match e with
@@ -312,3 +356,71 @@ end;; (* struct Semantics *)
  because we always get into this function in context of lambda and if we call it with body only
  we will lose the params and won't be able to extend the env 
 *)
+
+
+(* (lambda (x)
+    d:0 (lambda ()
+        (list 
+          (lambda () d:1 vb:1,0 x)
+          (lambda () (set! x 1))
+        )
+      ) 
+    )    
+  ) 
+*)
+
+(* 
+"(lambda (x) 
+  (lambda ()
+    (lambda () x) 
+    (set! x 1) 
+  )
+ )"
+
+[ ([(VarBound ("x", 0, 0), [["x"]])], []);
+  ([], [(VarParam ("x", 0), [])])]
+
+
+
+
+  "
+  (lambda (x) 
+    (lambda () x) 
+    (lambda () (set! x 1) )
+  )"
+
+[   ([(VarBound ("x", 0, 0), [["x"]])], [])   ;                                     
+    ([], [(VarBound ("x", 0, 0), [["x"]])])    ]
+
+
+
+
+    (lambda (x) 
+      (set! x (+ x 1)) 
+      (lambda (y) (+ x y))
+    )
+
+    Seq'( [... ; <write-occur> ; ... ; E ; ...]) where E contains <read occur>
+    VarBound(1,0) --> VarBound(1,0)
+    VarParam(0)
+
+
+
+    Seq' ([...; <read-occur>; ...; E; ...])  *)
+
+
+    (lambda (x) 
+      ((lambda (y) (set! x 2)) x)
+    )
+
+    (lambda (y x)
+      ((lambda (x) x) (set! x 1))
+    )
+
+    (lambda (x)
+      (list 
+        ((lambda () x))
+        (lambda (set! x 1))
+      )
+    )
+
