@@ -137,17 +137,17 @@ let rec annotate_TC expr in_tp =
     | If'(test,dit,dif) ->  if_read_write test dit dif depth env cur_closure_params
     | LambdaSimple'(params,body) -> find_read_write body (depth + 1) (ext_env cur_closure_params env) params
     | LambdaOpt'(mandatory, optional, body) -> find_read_write body (depth + 1) (ext_env cur_closure_params env) (List.append mandatory [optional])
-    | Or'(ors) -> List.fold_left (fun acc exp -> (read_write_append (find_read_write exp depth env cur_closure_params) acc) ) ([],[]) ors
+    | Or'(ors) -> List.fold_left (fun acc exp -> (read_write_append acc (find_read_write exp depth env cur_closure_params)) ) ([],[]) ors
     | Set'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in
                       (reads,List.append (write_var vr depth env) writes)
-    | Seq'(seq) ->  List.fold_left (fun acc exp -> read_write_append (find_read_write exp depth env cur_closure_params) acc ) ([],[]) seq
+    | Seq'(seq) ->  List.fold_left (fun acc exp -> read_write_append acc (find_read_write exp depth env cur_closure_params)) ([],[]) seq
     | Def'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in  
                       (reads,List.append (write_var vr depth env) writes)
-    | Applic'(body,args) -> read_write_append (find_read_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> read_write_append (find_read_write exp depth env cur_closure_params) acc ) ([],[]) args)
-    | ApplicTP'(body,args) -> read_write_append (find_read_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> read_write_append (find_read_write exp depth env cur_closure_params) acc ) ([],[]) args)
+    | Applic'(body,args) -> read_write_append (find_read_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> read_write_append acc (find_read_write exp depth env cur_closure_params) ) ([],[]) args)
+    | ApplicTP'(body,args) -> read_write_append (find_read_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> read_write_append acc (find_read_write exp depth env cur_closure_params) ) ([],[]) args)
     | Var'(VarFree(name)) -> ([],[])
-    | Var'(VarParam(name,minor)) -> if (depth == 0) then ([Var'(VarParam(name,minor)),env],[]) else ([],[])
-    | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then ([Var'(VarBound(name,major,minor)),env],[]) else ([],[])
+    | Var'(VarParam(name,minor)) -> if (depth == 0) then ([name,env],[]) else ([],[])
+    | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then ([name,env],[]) else ([],[])
     | _ -> ([],[])
 
 
@@ -159,8 +159,8 @@ let rec annotate_TC expr in_tp =
 
       and write_var vr depth env = 
       match vr with
-      | VarParam(name,minor) -> if (depth == 0) then [Var'(VarParam(name,minor)),env] else []
-      | VarBound(name,major,minor) -> if (depth - 1 == major) then [Var'(VarBound(name,major,minor)),env] else []
+      | VarParam(name,minor) -> if (depth == 0) then [name,env] else []
+      | VarBound(name,major,minor) -> if (depth - 1 == major) then [name,env] else []
       | VarFree(name) -> [];;
 
 
@@ -169,14 +169,14 @@ let rec annotate_TC expr in_tp =
       let LambdaSimple'(params,body) = expr_tag in
       find_read_write body 0 [] params;;
 
-  let rec exist pred element lst =
+  let rec exist element lst =
     match lst with 
-    | hd::tail -> if (pred hd element) then true else (exist pred element tail)
+    | hd::tail -> if ( hd = element) then true else (exist element tail)
     | [] -> false;; 
     
-  let rec remove_dups pred lst = 
+  let rec remove_dups  lst = 
       match lst with
-      | first::rest -> if (exist pred first rest) then (remove_dups pred rest) else first::(remove_dups pred rest)
+      | first::rest -> if (exist first rest) then (remove_dups  rest) else first::(remove_dups  rest)
       | [] -> [];;
   
   let get_read_write params expr  =
@@ -199,15 +199,14 @@ let rec annotate_TC expr in_tp =
      | [] , first::rest -> false
      | [] , [] -> true
      | first1::rest1 , first2::rest2 -> if (first1 == first2) then same_closure rest1 rest2 else false in
-    let name1 = get_var_name var1 in 
-    let name2 = get_var_name var2 in
-    if ( (name1 = name2) && (not (common_ancestor env1 env2)) && (not (same_closure env1 env2))) then true else false 
+    if ( (var1 = var2) && (not (common_ancestor env1 env2)) && (not (same_closure env1 env2))) then true else false 
 
   let rec get_need_to_be_boxed_vars params body =
     if (params = [] ) then [] else 
     let (reads,writes) = get_read_write params body in
-    remove_dups (fun var1 var2 -> (get_var_name var1) = (get_var_name var2)) (List.fold_left (fun acc (var1,env1) -> if (List.exists (fun (var2,env2) -> var_match var1 env1 var2 env2) writes) then var1::acc else acc ) [] reads)
-      
+    let lst = (List.fold_left (fun acc (var1,env1) -> if (List.exists (fun (var2,env2) -> var_match var1 env1 var2 env2) writes) then var1::acc else acc ) [] reads) in
+    List.fold_right (fun param acc  -> if (List.mem param lst) then param::acc else acc) params []
+
   let test_get_need_to_be_boxed_vars str = 
     let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
     let LambdaSimple'(params,body) = expr_tag in
@@ -233,9 +232,12 @@ let rec annotate_TC expr in_tp =
     | BoxGet'(vr) -> BoxGet'(vr)
     | BoxSet'(vr,vl) -> BoxSet'(vr,box_var var_name vl) 
 
+  let find_param_minor var_name params =
+    index_of params var_name;;
+
   (* add Set'(VarParam(v, minor), Box'(VarParam(v,minor))) in the begging of the lambda *)
-  let add_set_box body vars=
-    let sets= List.map (fun (Var' var) -> Set'(var,Box'(var))) vars in
+  let add_set_box body vars params=
+    let sets= List.map (fun var_name -> Set'(VarParam(var_name, find_param_minor var_name params),Box'(VarParam(var_name,find_param_minor var_name params)))) vars in
     match body with 
     | Seq'(seq) -> Seq'(List.append sets seq)
     | expr -> Seq'(List.append sets [expr])
@@ -248,14 +250,12 @@ let rec annotate_TC expr in_tp =
     if (params = []) then expr else
     let need_to_be_boxed = get_need_to_be_boxed_vars params body in 
     if (need_to_be_boxed = [] ) then expr else
-    let new_body = add_set_box body need_to_be_boxed in
-    let new_body = List.fold_left (fun acc var -> box_var (get_var_name var) acc) new_body need_to_be_boxed in
+    let new_body = add_set_box body need_to_be_boxed params in
+    let new_body = List.fold_left (fun acc var -> box_var var acc) new_body need_to_be_boxed in
     match expr with 
     | LambdaSimple'(params,_) -> LambdaSimple'(params,new_body)
     | LambdaOpt'(mandatory, optional, _) -> LambdaOpt'(mandatory, optional, new_body)
     | _ -> raise (X_my_exception expr)
-    (* 1. now box the vars in the tree *)
-    (* 2. make sure to return same expr' as called this function e.g LambdaSimple' / LambdaOpt' *)
 
   let rec reach_lambda e =
     match e with
@@ -271,19 +271,6 @@ let rec annotate_TC expr in_tp =
     | Applic'(body, args) -> Applic'(reach_lambda body, List.map reach_lambda args)
     | ApplicTP'(body,args) -> ApplicTP'(reach_lambda body, List.map reach_lambda args)
     | _ -> raise (X_my_exception e);;  
-
- 
-    
-  
-
-(* 
-    1 -> find read write  -> two arrays 
-    2 -> build a list of need-to-be-boxed vars -> list of string 
-    3 -> change tree to apply boxing -> tree
-*)
-
-
-
 
   let tp_test_string x = 
     annotate_TC (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) []) false;;
@@ -320,79 +307,4 @@ let run_semantics expr =
        (annotate_lexical_addresses expr));;
   
 end;; (* struct Semantics *)
-
-
-(* הערות:
-בודק אם הפרמטר שאנחנו קוראים כרגע מתייחס ללמדה שממנה התחלנו את הבדיקה if (depth - 1 == major) איפה שבדקנו 
-כלומר במצב כזה
-(lambda (x)
-  (lambda () x))
- הפרמטר איקס כן יכנס לרשימת קריאה 
-אבל במצב כזה 
-(lambda (x)
-  (lambda (x) x))
-הפרמטר איקס לא יכנס לרשימת קריאה כי הוא לא מתייחס לפרמטר מהלמדה שאנחנו בודקים
-לכן הבדיקה הזו לא באמת מתייחסת לדרישה שלא יהיה אב משותף בין הריב שקורא לריב שכותב
-בגלל זה הפכתי את הרשימת קריאה לזוג של משתנה(כולל המיינור והמייג'ור) ושל הסביבה בזמן השימוש בו
-ככה אחרי שנמצא שני משתנים חשודים שעלולים להתנגש נבדוק לפי הסביבות שלהם אם יש להם אב משותף (לפי הפוינטר ולא לפי ערך, בדקתי עובד ) 
-
- ?לא עשיתי אפליי_בוקס רק על הבאדי reach_lambda למה בפונקציה
- כי אז הייתי מאבד את פאראמס ולא הייתי יכול להשתמש בהם כדי להרחיב את הסביבה 
-
- why i added the cur_closur_params in find_read ?
- because we always get into this function in context of lambda and if we call it with body only
- we will lose the params and won't be able to extend the env 
-*)
-
-
-(* (lambda (x)
-    d:0 (lambda ()
-        (list 
-          (lambda () d:1 vb:1,0 x)
-          (lambda () (set! x 1))
-        )
-      ) 
-    )    
-  ) 
-*)
-
-(* 
-"(lambda (x) 
-  (lambda ()
-    (lambda () x) 
-    (set! x 1) 
-  )
- )"
-
-[ ([(VarBound ("x", 0, 0), [["x"]])], []);
-  ([], [(VarParam ("x", 0), [])])]
-
-
-
-
-  "
-  (lambda (x) 
-    (lambda () x) 
-    (lambda () (set! x 1) )
-  )"
-
-[   ([(VarBound ("x", 0, 0), [["x"]])], [])   ;                                     
-    ([], [(VarBound ("x", 0, 0), [["x"]])])    ]
-
-
-
-
-    (lambda (x) 
-      (set! x (+ x 1)) 
-      (lambda (y) (+ x y))
-    )
-
-    Seq'( [... ; <write-occur> ; ... ; E ; ...]) where E contains <read occur>
-    VarBound(1,0) --> VarBound(1,0)
-    VarParam(0)
-
-
-
-    Seq' ([...; <read-occur>; ...; E; ...])  *)
-
 
