@@ -1,5 +1,7 @@
 #use "tag-parser.ml";;
 
+
+
 type var = 
   | VarFree of string
   | VarParam of string * int
@@ -20,6 +22,10 @@ type expr' =
   | LambdaOpt' of string list * string * expr'
   | Applic' of expr' * (expr' list)
   | ApplicTP' of expr' * (expr' list);;
+
+
+exception X_my_exception of expr';;
+type env = Env of string list;;
 
 let rec expr'_eq e1 e2 =
   match e1, e2 with
@@ -120,153 +126,134 @@ let rec annotate_TC expr in_tp =
 
 
   let ext_env params env = 
-      params::env;;
-    
-  let rec find_read exp depth env cur_closure_params= 
+      Env(params)::env;;
+  
+  let read_write_append (r_lst1,w_lst1) (r_lst2,w_lst2) =
+      (List.append r_lst1 r_lst2,List.append w_lst1 w_lst2)
+
+  let rec find_read_write exp depth env cur_closure_params= 
     match exp with
-    | Const'(x) -> []
-    | If'(test,dit,dif) ->  if_read test dit dif depth env cur_closure_params
-    | LambdaSimple'(params,body) -> find_read body (depth + 1) (ext_env cur_closure_params env) params
-    | LambdaOpt'(mandatory, optional, body) -> find_read body (depth + 1) (ext_env cur_closure_params env) (List.append mandatory [optional])
-    | Or'(ors) -> List.fold_left (fun acc exp -> (List.append (find_read exp depth env cur_closure_params) acc) ) [] ors
-    | Set'(_,vl) -> find_read vl depth env cur_closure_params
-    | Seq'(seq) ->  List.fold_left (fun acc exp -> List.append (find_read exp depth env cur_closure_params) acc ) [] seq
-    | Def'(_,vl) -> find_read vl depth env cur_closure_params
-    | Applic'(body,args) -> List.append (find_read body depth env cur_closure_params) (List.fold_left (fun acc exp -> List.append (find_read exp depth env cur_closure_params) acc ) [] args)
-    | ApplicTP'(body,args) -> List.append (find_read body depth env cur_closure_params) (List.fold_left (fun acc exp -> List.append (find_read exp depth env cur_closure_params) acc ) [] args)
-    | Var'(VarFree(name)) -> []
-    | Var'(VarParam(name,minor)) -> if (depth == 0) then [VarParam(name,minor),env] else []
-    | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then [VarBound(name,major,minor),env] else []
-    | _ -> []
+    | Const'(x) -> ([],[])
+    | If'(test,dit,dif) ->  if_read_write test dit dif depth env cur_closure_params
+    | LambdaSimple'(params,body) -> find_read_write body (depth + 1) (ext_env cur_closure_params env) params
+    | LambdaOpt'(mandatory, optional, body) -> find_read_write body (depth + 1) (ext_env cur_closure_params env) (List.append mandatory [optional])
+    | Or'(ors) -> List.fold_left (fun acc exp -> (read_write_append (find_read_write exp depth env cur_closure_params) acc) ) ([],[]) ors
+    | Set'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in
+                      (reads,List.append (write_var vr depth env) writes)
+    | Seq'(seq) ->  List.fold_left (fun acc exp -> read_write_append (find_read_write exp depth env cur_closure_params) acc ) ([],[]) seq
+    | Def'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in  
+                      (reads,List.append (write_var vr depth env) writes)
+    | Applic'(body,args) -> read_write_append (find_read_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> read_write_append (find_read_write exp depth env cur_closure_params) acc ) ([],[]) args)
+    | ApplicTP'(body,args) -> read_write_append (find_read_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> read_write_append (find_read_write exp depth env cur_closure_params) acc ) ([],[]) args)
+    | Var'(VarFree(name)) -> ([],[])
+    | Var'(VarParam(name,minor)) -> if (depth == 0) then ([Var'(VarParam(name,minor)),env],[]) else ([],[])
+    | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then ([Var'(VarBound(name,major,minor)),env],[]) else ([],[])
+    | _ -> ([],[])
 
 
-    and if_read test dit dif depth env cur_closure_params= 
-      let test_read = find_read test depth env cur_closure_params in
-      let dit_read = find_read dit depth env cur_closure_params in
-      let dif_read = find_read dif depth env cur_closure_params in
-      List.append (List.append test_read dit_read) dif_read;;
+    and if_read_write test dit dif depth env cur_closure_params= 
+      let test_read = find_read_write test depth env cur_closure_params in
+      let dit_read = find_read_write dit depth env cur_closure_params in
+      let dif_read = find_read_write dif depth env cur_closure_params in
+      read_write_append (read_write_append test_read dit_read) dif_read
+
+      and write_var vr depth env = 
+      match vr with
+      | VarParam(name,minor) -> if (depth == 0) then [Var'(VarParam(name,minor)),env] else []
+      | VarBound(name,major,minor) -> if (depth - 1 == major) then [Var'(VarBound(name,major,minor)),env] else []
+      | VarFree(name) -> [];;
 
 
-      let rec find_write exp depth env cur_closure_params= 
-        match exp with
-        | Const'(x) -> []
-        | If'(test,dit,dif) ->  if_write test dit dif depth env cur_closure_params
-        | LambdaSimple'(params,body) -> find_write body (depth + 1) (ext_env cur_closure_params env) params
-        | LambdaOpt'(mandatory, optional, body) -> find_write body (depth + 1) (ext_env cur_closure_params env) (List.append mandatory [optional])
-        | Or'(ors) -> List.fold_left (fun acc exp -> (List.append (find_write exp depth env cur_closure_params) acc) ) [] ors
-        | Set'(vr,vl) -> List.append (write_var vr depth env) (find_write vl depth env cur_closure_params)
-        | Seq'(seq) ->  List.fold_left (fun acc exp -> List.append (find_write exp depth env cur_closure_params) acc ) [] seq
-        | Def'(vr,vl) -> List.append (write_var vr depth env) (find_write vl depth env cur_closure_params)
-        | Applic'(body,args) -> List.append (find_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> List.append (find_write exp depth env cur_closure_params) acc ) [] args)
-        | ApplicTP'(body,args) -> List.append (find_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> List.append (find_write exp depth env cur_closure_params) acc ) [] args)
-        | Var'(VarFree(name)) -> []
-        | Var'(VarParam(name,minor)) -> []
-        | Var'(VarBound(name,major,minor)) -> []
-        | _ -> []
-    
-        and write_var vr depth env = 
-          match vr with
-          | VarParam(name,minor) -> if (depth == 0) then [VarParam(name,minor),env] else []
-          | VarBound(name,major,minor) -> if (depth - 1 == major) then [VarBound(name,major,minor),env] else []
-          | VarFree(name) -> []
-
-        and if_write test dit dif depth env cur_closure_params= 
-          let test_write = find_write test depth env cur_closure_params in
-          let dit_write = find_write dit depth env cur_closure_params in
-          let dif_write = find_write dif depth env cur_closure_params in
-          List.append (List.append test_write dit_write) dif_write;;
-
-    let find_read_test str =
+    let find_read_write_test str =
       let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
       let LambdaSimple'(params,body) = expr_tag in
-      find_read body 0 [] params;;
+      find_read_write body 0 [] params;;
 
-      let find_write_test str =
-        let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
-        let LambdaSimple'(params,body) = expr_tag in
-        find_write body 0 [] params;;
-
-  let rec exist element lst =
+  let rec exist pred element lst =
     match lst with 
-    | hd::tail -> if (hd = element) then true else (exist element tail)
+    | hd::tail -> if (pred hd element) then true else (exist pred element tail)
     | [] -> false;; 
     
-  let rec remove_dups lst = 
+  let rec remove_dups pred lst = 
       match lst with
-      | first::rest -> if (exist first rest) then (remove_dups rest) else first::(remove_dups rest)
+      | first::rest -> if (exist pred first rest) then (remove_dups pred rest) else first::(remove_dups pred rest)
       | [] -> [];;
   
-  let find_read_write params rib  =
-    let read = remove_dups (find_read  rib 0  [] params) in 
-    let write =remove_dups (find_write rib 0  [] params) in
-    (read, write);; 
+  let get_read_write params expr  =
+    find_read_write expr 0 [] params;;
 
+  let common_ancestor (env1:env list) (env2:env list) = 
+    false;;
+
+  let get_var_name var =
+    match var with
+    | Var'(VarParam(name,_)) -> name
+    | Var'(VarBound(name,_,_)) -> name 
+    | Var'(VarFree(name)) -> name
+    | _ -> raise X_no_match ;;
 
   let var_match var1 env1 var2 env2 =
-    match var1, var2 with
-    | VarParam(name1,minor1) , VarBound(name2,major2,minor2) -> if ((name1 = name2) & (!common_ancestor(env1,env2))) then true else false
-    | VarParam(name1, minor1), VarParam(name2, minor2) -> if ((name1 = name2) & (!common_ancestor(env1,env2))) then true else false
-    | VarBound(name1, major1, minor1), VarParam(name2,minor2) -> if ((name1 = name2) & (!common_ancestor(env1,env2))) then true else false
-    | VarBound(name1, major1, minor1), VarBound(name2, major2, minor2) -> if ((name1 = name2) & (!common_ancestor(env1,env2))) then true else false;;
+    let rec same_closure (env1:env list) (env2:env list) = 
+      match env1,env2 with
+     | first::rest , [] -> false
+     | [] , first::rest -> false
+     | [] , [] -> true
+     | first1::rest1 , first2::rest2 -> if (first1 == first2) then same_closure rest1 rest2 else false in
+    let name1 = get_var_name var1 in 
+    let name2 = get_var_name var2 in
+    if ( (name1 = name2) && (not (common_ancestor env1 env2)) && (not (same_closure env1 env2))) then true else false 
 
   let rec get_need_to_be_boxed_vars params body =
-    match body with
-    | Const'(x) -> []
-    | Var'(var) ->  []
-    | If'(test,dit,dif) -> if_ribs_with_box test dit dif
-    | Seq'(seq) -> (* seq_ribs_with_box seq params *) []
-    | Set'(var,vl) -> []
-    | Def'(var,vl) -> []
-    | Or'(ors) -> []
-    | LambdaSimple'(params, body) ->  
-    | LambdaOpt'(mandatory, optional, body) -> 
-    | Applic'(body, args) -> applic_with_box body args params
-    | ApplicTP'(body,args) ->   
-    | _ -> raise X_no_match
-
-    (* and seq_ribs_with_box seq params=
-      let vars = List.map (fun (rib) find_read_write params rib) seq in *)
-    and applic_with_box body args params =
-      let body_read  = find_read  body 0 [] params in
-      let body_write = find_write body 0 [] params in
-      let args_read  = List.map (fun arg -> find_read  arg 0 [] params) args in
-      let args_write = List.map (fun arg -> find_write arg 0 [] params) args in
-      let all_read  = body_read ::args_read  in
-      let all_write = body_write::args_write in
-      List.filter (fun (Var'(var1),env1) -> List.exists (fun (Var'(var2),env2) ->  (var_match var1 env1 var2 env2) ) all_write) all_read
-      List.map (fun rib_read_list -> List.map (fun (Var'(var1),env1)-> ) rib_read_list ) all_read
+    if (params = [] ) then [] else 
+    let (reads,writes) = get_read_write params body in
+    remove_dups (fun var1 var2 -> (get_var_name var1) = (get_var_name var2)) (List.fold_left (fun acc (var1,env1) -> if (List.exists (fun (var2,env2) -> var_match var1 env1 var2 env2) writes) then var1::acc else acc ) [] reads)
       
-       
-     r: [(Var1,env) ; (Var2, env)]
-     w: 
+  let test_get_need_to_be_boxed_vars str = 
+    let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
+    let LambdaSimple'(params,body) = expr_tag in
+    get_need_to_be_boxed_vars params body;;
 
-     
-      (lambda (x) 
-        ( (lambda (y) x) (set! x 1) )
-      )
+  let rec box_var var_name body =
+    match body with
+    | Const'(x) -> Const'(x)
+    | If'(test,dit,dif) ->  If'(box_var var_name test,box_var var_name dit,box_var var_name dif)
+    | LambdaSimple'(params,body) -> if (List.mem var_name params) then LambdaSimple'(params,body) else LambdaSimple'(params,box_var var_name body)
+    | LambdaOpt'(mandatory, optional, body) -> if (List.mem var_name (List.append mandatory [optional])) then LambdaOpt'(mandatory, optional, body) else LambdaOpt'(mandatory, optional,box_var var_name body)
+    | Or'(ors) -> Or'(List.map (fun expr -> box_var var_name expr) ors)
+    | Set'(vr,Box'(vr2)) -> Set'(vr,Box'(vr2))
+    | Set'(vr,vl) -> if ((get_var_name (Var'(vr))) = var_name) then BoxSet'(vr,box_var var_name vl) else Set'(vr,box_var var_name vl)
+    | Seq'(seq) ->  Seq'(List.map (fun expr -> box_var var_name expr) seq)
+    | Def'(vr,vl) -> Def'(vr,box_var var_name vl)
+    | Applic'(body,args) -> Applic'(box_var var_name body,List.map (fun arg -> box_var var_name arg) args)
+    | ApplicTP'(body,args) -> ApplicTP'(box_var var_name body,List.map (fun arg -> box_var var_name arg) args)
+    | Var'(VarFree(name)) -> Var'(VarFree(name))
+    | Var'(VarParam(name,minor)) -> if (name = var_name) then BoxGet'(VarParam(name,minor)) else Var'(VarParam(name,minor)) 
+    | Var'(VarBound(name,major,minor)) -> if (name = var_name) then BoxGet'(VarBound(name,major,minor)) else Var'(VarBound(name,major,minor))
+    | Box'(vr) -> Box'(vr)
+    | BoxGet'(vr) -> BoxGet'(vr)
+    | BoxSet'(vr,vl) -> BoxSet'(vr,box_var var_name vl) 
 
-      (lambda (x)
-        (list (lambda () x) (lambda () (set! x 1)))
-      )
+  (* add Set'(VarParam(v, minor), Box'(VarParam(v,minor))) in the begging of the lambda *)
+  let add_set_box body vars=
+    let sets= List.map (fun (Var' var) -> Set'(var,Box'(var))) vars in
+    match body with 
+    | Seq'(seq) -> Seq'(List.append sets seq)
+    | expr -> Seq'(List.append sets [expr])
 
-      apply_box:
-      params: ["x"]
-      body: ((lambda (y) x) (set! x 1))
-
-      applic_with_box:
-      body: (lambda (y) x)  r:[vb(x):0,0]
-      args: (set! x 1)      w:[vp(x):0]
-      params: ["x"]
-
-      (lambda (x)
-        ((lambda () (set! x 1)) x)
-      )
-    (* (lambda (x) (lambda () (lambda () (lambda () x) (lambda () (set! x 1)) ) ) )
-    *)
-
-  let rec apply_box params body =
-    let need_to_be_boxed = get_need_to_be_boxed_vars params body in
-    Const'(Void)
+  let rec apply_box expr =
+    let (params,body) = match expr with 
+                        | LambdaSimple'(params,body) -> (params,body)
+                        | LambdaOpt'(mandatory, optional, body) -> ((List.append mandatory [optional]),body)
+                        | _ -> raise (X_my_exception expr) in
+    if (params = []) then expr else
+    let need_to_be_boxed = get_need_to_be_boxed_vars params body in 
+    if (need_to_be_boxed = [] ) then expr else
+    let new_body = add_set_box body need_to_be_boxed in
+    let new_body = List.fold_left (fun acc var -> box_var (get_var_name var) acc) new_body need_to_be_boxed in
+    match expr with 
+    | LambdaSimple'(params,_) -> LambdaSimple'(params,new_body)
+    | LambdaOpt'(mandatory, optional, _) -> LambdaOpt'(mandatory, optional, new_body)
+    | _ -> raise (X_my_exception expr)
     (* 1. now box the vars in the tree *)
     (* 2. make sure to return same expr' as called this function e.g LambdaSimple' / LambdaOpt' *)
 
@@ -279,11 +266,11 @@ let rec annotate_TC expr in_tp =
     | Set'(var,vl) -> Set'(var, reach_lambda vl)
     | Def'(var,vl) -> Def'(var, reach_lambda vl)
     | Or'(ors) -> Or'(List.map reach_lambda ors)
-    | LambdaSimple'(params, body) -> apply_box params (reach_lambda body)
-    | LambdaOpt'(mandatory, optional, body) ->  apply_box (List.append mandatory [optional]) (reach_lambda body)
+    | LambdaSimple'(params, body) -> apply_box (LambdaSimple'(params,reach_lambda body))
+    | LambdaOpt'(mandatory, optional, body) -> apply_box (LambdaOpt'(mandatory, optional,reach_lambda body))
     | Applic'(body, args) -> Applic'(reach_lambda body, List.map reach_lambda args)
     | ApplicTP'(body,args) -> ApplicTP'(reach_lambda body, List.map reach_lambda args)
-    | _ -> raise X_no_match;;  
+    | _ -> raise (X_my_exception e);;  
 
  
     
@@ -324,7 +311,7 @@ let annotate_tail_calls e = annotate_TC e false;;
 
 
 (* implement!!!!!! *)
-let box_set e = e;; 
+let box_set e =  reach_lambda e;; 
 
 
 let run_semantics expr =
@@ -408,19 +395,4 @@ end;; (* struct Semantics *)
 
     Seq' ([...; <read-occur>; ...; E; ...])  *)
 
-
-    (lambda (x) 
-      ((lambda (y) (set! x 2)) x)
-    )
-
-    (lambda (y x)
-      ((lambda (x) x) (set! x 1))
-    )
-
-    (lambda (x)
-      (list 
-        ((lambda () x))
-        (lambda (set! x 1))
-      )
-    )
 
