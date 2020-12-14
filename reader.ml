@@ -128,11 +128,11 @@ open PC;;
       
 
   let nt_Fraction = 
-    let frac = caten nt_IntegerAsInteger (caten (char '/') nt_Natural) in
+    let frac = caten nt_Sign (caten nt_Natural (caten (char '/') nt_Natural)) in
                 pack frac
-                    (fun (nomer,(_,denom)) ->
+                    (fun (sign, (nomer,(_,denom))) ->
                         let gd = gcd nomer denom in
-                        Number(Fraction(nomer/gd , denom/gd))
+                        Number(Fraction(sign * nomer / gd , denom / gd))
                     )
                   
               ;;
