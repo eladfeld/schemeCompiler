@@ -132,7 +132,6 @@ let rec annotate_TC expr in_tp =
       (List.append r_lst1 r_lst2,List.append w_lst1 w_lst2)
 
   let rec find_read_write exp depth env cur_closure_params= 
-    let param_env = Env(cur_closure_params) in
     match exp with
     | Const'(x) -> ([],[])
     | If'(test,dit,dif) ->  if_read_write test dit dif depth env cur_closure_params
@@ -140,15 +139,15 @@ let rec annotate_TC expr in_tp =
     | LambdaOpt'(mandatory, optional, body) -> find_read_write body (depth + 1) (ext_env cur_closure_params env) (List.append mandatory [optional])
     | Or'(ors) -> List.fold_left (fun acc exp -> (read_write_append acc (find_read_write exp depth env cur_closure_params)) ) ([],[]) ors
     | Set'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in
-                      (reads,List.append (write_var vr depth env param_env) writes)
+                      (reads,List.append (write_var vr depth env cur_closure_params) writes)
     | Seq'(seq) ->  List.fold_left (fun acc exp -> read_write_append acc (find_read_write exp depth env cur_closure_params)) ([],[]) seq
     | Def'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in  
-                      (reads,List.append (write_var vr depth env param_env) writes )
+                      (reads,List.append (write_var vr depth env cur_closure_params) writes )
     | Applic'(body,args) -> read_write_append (find_read_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> read_write_append acc (find_read_write exp depth env cur_closure_params) ) ([],[]) args)
     | ApplicTP'(body,args) -> read_write_append (find_read_write body depth env cur_closure_params) (List.fold_left (fun acc exp -> read_write_append acc (find_read_write exp depth env cur_closure_params) ) ([],[]) args)
     | Var'(VarFree(name)) -> ([],[])
-    | Var'(VarParam(name,minor)) -> if (depth == 0) then ([name,param_env::env],[]) else ([],[])
-    | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then ([name,param_env::env],[]) else ([],[])
+    | Var'(VarParam(name,minor)) -> if (depth == 0) then ([name,env],[]) else ([],[])
+    | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then ([name,env],[]) else ([],[])
     | _ -> ([],[])
 
 
@@ -160,8 +159,8 @@ let rec annotate_TC expr in_tp =
 
       and write_var vr depth env params= 
       match vr with
-      | VarParam(name,minor) -> if (depth == 0) then [name,params::env] else []
-      | VarBound(name,major,minor) -> if (depth - 1 == major) then [name,params::env] else []
+      | VarParam(name,minor) -> if (depth == 0) then [name,env] else []
+      | VarBound(name,major,minor) -> if (depth - 1 == major) then [name,env] else []
       | VarFree(name) -> [];;
 
 
@@ -185,9 +184,9 @@ let rec annotate_TC expr in_tp =
 
 
   let rec is_common_ancestor (env1:env list) (env2:env list) var = 
-    match env1 with
+    (* match env1 with
     | Env(first)::rest -> if ((List.exists (fun (Env x) -> x == first) env2) && (not (List.mem var first))) then true else is_common_ancestor rest env2 var
-    | [] -> false;;
+    | [] -> false;; *)false;;
 
 
   let get_var_name var =
@@ -204,7 +203,7 @@ let rec annotate_TC expr in_tp =
      | [] , first::rest -> false
      | [] , [] -> true
      | first1::rest1 , first2::rest2 -> if (first1 == first2) then same_rib rest1 rest2 else false in
-    if ( (var1 = var2) && (not (is_common_ancestor (List.tl env1) (List.tl env2) var1)) && (not (same_rib env1 env2))) then true else false 
+    if ( (var1 = var2) && (not (is_common_ancestor env1 env2 var1)) && (not (same_rib env1 env2))) then true else false 
 
 
   let rec get_need_to_be_boxed_vars params body =
