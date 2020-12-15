@@ -148,7 +148,9 @@ let rec annotate_TC expr in_tp =
     | Var'(VarFree(name)) -> ([],[])
     | Var'(VarParam(name,minor)) -> if (depth == 0) then ([name, cur_closure_params::env],[]) else ([],[])
     | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then ([name, cur_closure_params::env],[]) else ([],[])
-    | _ -> ([],[])
+    | BoxSet'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in
+                            (reads,List.append (write_var vr depth env cur_closure_params) writes) 
+    | _ ->([],[])
 
 
     and if_read_write test dit dif depth env cur_closure_params= 
