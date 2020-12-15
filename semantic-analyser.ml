@@ -194,10 +194,93 @@ let rec annotate_TC expr in_tp =
      | first1::rest1 , first2::rest2 -> if (first1 == first2) then same_rib rest1 rest2 else false in
     if ( (var1 = var2) && (not (is_common_ancestor env1 env2 var1)) && (not (same_rib env1 env2))) then true else false 
 
+    let ignore_to_var_list ignores=
+      let extract_var_from_ignore ignore = 
+        match ignore with 
+        | (VarBound(name,major,minor), _) -> name
+        | _ -> "error" in
+      List.map (fun ignore -> extract_var_from_ignore ignore) ignores;;
+
+    let in_dont_ignore vr dont_ignore_read = 
+      match vr with
+      | VarParam(name,minor) -> List.mem name (ignore_to_var_list dont_ignore_read)
+      | VarBound(name,major,minor) -> List.mem name (ignore_to_var_list dont_ignore_read)
+      | VarFree(name) -> false;;
+
+    let append_to_dont_ignore vr depth dont_ignore env params =
+      match vr with 
+      | VarParam(name,minor) -> dont_ignore
+      | VarBound(name,major,minor) -> if (depth -1 == major) then (VarBound(name,major,minor),params::env)::dont_ignore else dont_ignore
+      | VarFree(name) -> dont_ignore;;
+    
+    let foursome_append (rlist1,wlist1,dir1,diw1) (rlist2,wlist2,dir2,diw2) =
+        let dont_ignore_read  = List.fold_left (fun acc var -> if (not (List.mem var dir1)) then var::acc else acc) dir1 dir2 in
+        let dont_ignore_write  = List.fold_left (fun acc var -> if (not (List.mem var dir1)) then var::acc else acc) diw1 diw2 in
+        (List.append rlist1 rlist2,List.append wlist1 wlist2,dont_ignore_read,dont_ignore_write)
+
+    let rec third_rule_find_read_write exp depth env cur_closure_params dont_ignore_read dont_ignore_write = 
+      match exp with
+      | Const'(x) -> ([],[], dont_ignore_read, dont_ignore_write)
+      | If'(test,dit,dif) ->  third_rule_if_read_write test dit dif depth env cur_closure_params dont_ignore_read dont_ignore_write
+      | LambdaSimple'(params,body) -> third_rule_find_read_write body (depth + 1) (ext_env cur_closure_params env) (Env params) dont_ignore_read dont_ignore_write
+      | LambdaOpt'(mandatory, optional, body) -> third_rule_find_read_write body (depth + 1) (ext_env cur_closure_params env) (Env((List.append mandatory [optional]))) dont_ignore_read dont_ignore_write
+      | Or'(ors) -> List.fold_left (fun acc exp -> (foursome_append acc (third_rule_find_read_write exp depth env cur_closure_params dont_ignore_read dont_ignore_write)) ) ([],[], dont_ignore_read, dont_ignore_write) ors
+      | Set'(vr,vl) -> let (reads,writes, dont_ignore_read1, dont_ignore_write1) = third_rule_find_read_write vl depth env cur_closure_params dont_ignore_read dont_ignore_write in
+                        let writes = if (in_dont_ignore vr dont_ignore_read) 
+                        then
+                         List.append (write_var vr depth env cur_closure_params) writes 
+                        else 
+                        writes in
+                        (reads, writes, dont_ignore_read1, (append_to_dont_ignore vr depth dont_ignore_write1 env cur_closure_params))
+      | Seq'(seq) ->  List.fold_left (fun acc exp -> foursome_append acc (third_rule_find_read_write exp depth env cur_closure_params dont_ignore_read dont_ignore_write)) ([],[], dont_ignore_read, dont_ignore_write) seq
+      | Def'(vr,vl) -> let (reads,writes, dont_ignore_read1, dont_ignore_write1) = third_rule_find_read_write vl depth env cur_closure_params dont_ignore_read dont_ignore_write in  
+                        let writes = if (in_dont_ignore vr dont_ignore_read) 
+                        then 
+                        List.append (write_var vr depth env cur_closure_params) writes 
+                        else 
+                        writes in
+                        (reads, writes, dont_ignore_read1, (append_to_dont_ignore vr depth dont_ignore_write1 env cur_closure_params))
+      | Applic'(body,args) -> foursome_append (third_rule_find_read_write body depth env cur_closure_params dont_ignore_read dont_ignore_write) (List.fold_left (fun acc exp -> foursome_append acc (third_rule_find_read_write exp depth env cur_closure_params dont_ignore_read dont_ignore_write) ) ([],[],dont_ignore_read,dont_ignore_write) args)
+      | ApplicTP'(body,args) -> foursome_append (third_rule_find_read_write body depth env cur_closure_params dont_ignore_read dont_ignore_write) (List.fold_left (fun acc exp -> foursome_append acc (third_rule_find_read_write exp depth env cur_closure_params dont_ignore_read dont_ignore_write) ) ([],[],dont_ignore_read,dont_ignore_write) args)
+      | Var'(VarFree(name)) -> ([],[], dont_ignore_read, dont_ignore_write)
+      | Var'(VarParam(name,minor)) -> if (depth == 0) && (List.mem name (ignore_to_var_list dont_ignore_write)) then ([name, cur_closure_params::env],[], dont_ignore_read, dont_ignore_write) else ([],[], dont_ignore_read, dont_ignore_write)
+      | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) && (List.mem name (ignore_to_var_list dont_ignore_write)) then
+                                             ([name, cur_closure_params::env],[], (VarBound(name,major,minor), cur_closure_params::env)::dont_ignore_read, dont_ignore_write ) else 
+                                             if (depth -1 == major) then
+                                              ([],[], (VarBound(name,major,minor), cur_closure_params::env)::dont_ignore_read, dont_ignore_write)
+                                              else ([],[], dont_ignore_read, dont_ignore_write)
+      | BoxSet'(vr,vl) -> third_rule_find_read_write vl depth env cur_closure_params dont_ignore_read dont_ignore_write
+      | BoxGet'(vr) -> ([],[], dont_ignore_read, dont_ignore_write)
+      | Box'(var) -> ([],[], dont_ignore_read, dont_ignore_write)
+
+
+      and third_rule_if_read_write test dit dif depth env cur_closure_params dont_ignore_read dont_ignore_write= 
+      let test_read = third_rule_find_read_write test depth env cur_closure_params dont_ignore_read dont_ignore_write in
+      let dit_read = third_rule_find_read_write dit depth env cur_closure_params dont_ignore_read dont_ignore_write in
+      let dif_read = third_rule_find_read_write dif depth env cur_closure_params dont_ignore_read dont_ignore_write in
+      foursome_append (foursome_append test_read dit_read) dif_read
+
+  let ignore_to_env ignores =
+    let extract_env ignore =
+      match ignore with 
+      | (VarBound(name,major,minor), env) -> (name, env)
+      | _ -> raise X_no_match in
+    List.map (fun ignore -> extract_env ignore) ignores;;
+
+  let third_rule params body = 
+      let get_dont_ignore_read = (fun (a,b,c,d) -> c) in
+      let get_dont_ignore_write = (fun (a,b,c,d) -> d) in
+      let get_r_w = (fun (a,b,c,d) -> (List.append a (ignore_to_env c), List.append b (ignore_to_env d))) in
+      match body with
+      | Seq'(ribs) ->get_r_w (List.fold_left (fun acc rib -> (foursome_append (third_rule_find_read_write rib 0 [] (Env params) (get_dont_ignore_read acc) (get_dont_ignore_write acc)) acc )) ([],[],[],[])  ribs)
+      | _ -> get_read_write params body;;
+
+
+
 
   let rec get_need_to_be_boxed_vars params body =
     if (params = [] ) then [] else 
-    let (reads,writes) = get_read_write params body in
+    let (reads,writes) = third_rule params body in
     let lst = (List.fold_left (fun acc (var1, env1) -> if (List.exists (fun (var2, env2) -> var_match var1 env1 var2 env2) writes) then var1::acc else acc ) [] reads) in
     List.fold_right (fun param acc  -> if (List.mem param lst) then param::acc else acc) params []
 
