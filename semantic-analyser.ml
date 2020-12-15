@@ -148,8 +148,6 @@ let rec annotate_TC expr in_tp =
     | Var'(VarFree(name)) -> ([],[])
     | Var'(VarParam(name,minor)) -> if (depth == 0) then ([name, cur_closure_params::env],[]) else ([],[])
     | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then ([name, cur_closure_params::env],[]) else ([],[])
-    (* | BoxSet'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in
-                            (reads,List.append (write_var vr depth env cur_closure_params) writes)  *)
     | BoxSet'(vr,vl) -> find_read_write vl depth env cur_closure_params
     | BoxGet'(vr) -> ([],[])
     | Box'(var) -> ([],[])
@@ -292,7 +290,7 @@ let run_semantics expr =
 end;; (* struct Semantics *)
 
 
-(* let test_semantics str = Semantics.run_semantics (List.hd (Tag_Parser.tag_parse_expressions (read_sexprs str)));;
+let test_semantics str = Semantics.run_semantics (List.hd (Tag_Parser.tag_parse_expressions (read_sexprs str)));;
 
 let test_find_read_write str =
   let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
@@ -308,4 +306,4 @@ let test_lexical_string x =
 let test_get_need_to_be_boxed_vars str = 
   let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
   let LambdaSimple'(params,body) = expr_tag in
-  get_need_to_be_boxed_vars params body;; *)
+  get_need_to_be_boxed_vars params body;;
