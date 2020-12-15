@@ -148,9 +148,11 @@ let rec annotate_TC expr in_tp =
     | Var'(VarFree(name)) -> ([],[])
     | Var'(VarParam(name,minor)) -> if (depth == 0) then ([name, cur_closure_params::env],[]) else ([],[])
     | Var'(VarBound(name,major,minor)) -> if (depth -1 == major) then ([name, cur_closure_params::env],[]) else ([],[])
-    | BoxSet'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in
-                            (reads,List.append (write_var vr depth env cur_closure_params) writes) 
-    | _ ->([],[])
+    (* | BoxSet'(vr,vl) -> let (reads,writes) = find_read_write vl depth env cur_closure_params in
+                            (reads,List.append (write_var vr depth env cur_closure_params) writes)  *)
+    | BoxSet'(vr,vl) -> find_read_write vl depth env cur_closure_params
+    | BoxGet'(vr) -> ([],[])
+    | Box'(var) -> ([],[])
 
 
     and if_read_write test dit dif depth env cur_closure_params= 
@@ -164,22 +166,6 @@ let rec annotate_TC expr in_tp =
       | VarParam(name,minor) -> if (depth == 0) then [name, params::env] else []
       | VarBound(name,major,minor) -> if (depth - 1 == major) then [name, params::env] else []
       | VarFree(name) -> [];;
-
-
-    let find_read_write_test str =
-      let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
-      let LambdaSimple'(params,body) = expr_tag in
-      find_read_write body 0 [] (Env params);;
-
-  let rec exist element lst =
-    match lst with 
-    | hd::tail -> if ( hd = element) then true else (exist element tail)
-    | [] -> false;; 
-    
-  let rec remove_dups  lst = 
-      match lst with
-      | first::rest -> if (exist first rest) then (remove_dups  rest) else first::(remove_dups  rest)
-      | [] -> [];;
   
   let get_read_write params expr  =
     find_read_write expr 0 [] (Env(params));;
@@ -216,11 +202,6 @@ let rec annotate_TC expr in_tp =
     let (reads,writes) = get_read_write params body in
     let lst = (List.fold_left (fun acc (var1, env1) -> if (List.exists (fun (var2, env2) -> var_match var1 env1 var2 env2) writes) then var1::acc else acc ) [] reads) in
     List.fold_right (fun param acc  -> if (List.mem param lst) then param::acc else acc) params []
-
-  (* let test_get_need_to_be_boxed_vars str = 
-    let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
-    let LambdaSimple'(params,body) = expr_tag in
-    get_need_to_be_boxed_vars params body;; *)
 
   let rec box_var var_name body =
     match body with
@@ -282,14 +263,6 @@ let rec annotate_TC expr in_tp =
     | ApplicTP'(body,args) -> ApplicTP'(reach_lambda body, List.map reach_lambda args)
     | _ -> raise (X_my_exception e);;  
 
-  let tp_test_string x = 
-    annotate_TC (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) []) false;;
-
-  let lexical_test_string x =
-    annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) [];;
-  
-  
-    
 module type SEMANTICS = sig
   val run_semantics : expr -> expr'
   val annotate_lexical_addresses : expr -> expr'
@@ -317,3 +290,22 @@ let run_semantics expr =
        (annotate_lexical_addresses expr));;
   
 end;; (* struct Semantics *)
+
+
+(* let test_semantics str = Semantics.run_semantics (List.hd (Tag_Parser.tag_parse_expressions (read_sexprs str)));;
+
+let test_find_read_write str =
+  let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
+  let LambdaSimple'(params,body) = expr_tag in
+  find_read_write body 0 [] (Env params);;
+
+let test_tp_string x = 
+  annotate_TC (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) []) false;;
+
+let test_lexical_string x =
+  annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) [];;
+
+let test_get_need_to_be_boxed_vars str = 
+  let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in
+  let LambdaSimple'(params,body) = expr_tag in
+  get_need_to_be_boxed_vars params body;; *)
