@@ -31,7 +31,7 @@
 	(if (equal? list '()) 
 		acc
 		(func (car list) (fold-right func acc (cdr list)))
-  	)))
+  	))) 
 
 (define cons*
   #;(Add your implementation here
