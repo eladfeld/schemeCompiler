@@ -287,7 +287,7 @@ exception X_syntax_error;;
 
   let rec get_need_to_be_boxed_vars params body =
     if (params = [] ) then [] else 
-    let (reads,writes) = third_rule params body in
+    let (reads,writes) = get_read_write params body in
     let lst = (List.fold_left (fun acc (var1, env1) -> if (List.exists (fun (var2, env2) -> var_match var1 env1 var2 env2) writes) then var1::acc else acc ) [] reads) in
     List.fold_right (fun param acc  -> if (List.mem param lst) then param::acc else acc) params []
 

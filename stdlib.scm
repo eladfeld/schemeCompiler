@@ -20,14 +20,18 @@
 
 
 (define fold-left 
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (lambda (func acc list) 
+	(if (equal? list '()) 
+		acc
+		(fold-left func (func (car list) acc) (cdr list))
+  	)))
 
 (define fold-right
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+  (lambda (func acc list) 
+	(if (equal? list '()) 
+		acc
+		(func (car list) (fold-right func acc (cdr list)))
+  	)))
 
 (define cons*
   #;(Add your implementation here
