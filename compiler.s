@@ -128,6 +128,7 @@
 
 %define MAKE_LITERAL_RATIONAL(num, den) \
 	MAKE_WORDS_LIT T_RATIONAL, num, den
+
 	
 %define MAKE_PAIR(r, car, cdr) \
         MAKE_TWO_WORDS r, T_PAIR, car, cdr
@@ -138,6 +139,34 @@
 %define MAKE_CLOSURE(r, env, body) \
         MAKE_TWO_WORDS r, T_CLOSURE, env, body
 
+;;--------------------------our code-------------------------------
+; Make a literal of type %1
+;followed by the definition %2
+%macro MAKE_LITERAL 2 
+	db %1			  
+	%2
+%endmacro
+
+%define MAKE_LITERAL_BOOL(val) MAKE_LITERAL T_BOOL,db val  
+
+%define MAKE_NIL db T_NIL
+
+%define MAKE_VOID db T_VOID
+
+%define MAKE_LITERAL_FLOAT(val) MAKE_LITERAL T_FLOAT, dq val
+
+%define MAKE_LITERAL_CHAR(val) MAKE_LITERAL T_CHAR, db val
+
+%macro MAKE_LITERAL_STRING 1
+	db T_STRING
+	dq (%%end_str -%%str)
+	%%str:
+		db %1
+	%%end_str:
+%endmacro
+
+%define MAKE_LITERAL_SYMBOL(str_ptr) MAKE_LITERAL T_SYMBOL,dq str_ptr 
+;;-------------------------------------------------------------------
 	
 ;;; Macros and routines for printing Scheme OBjects to STDOUT
 %define CHAR_NUL 0
