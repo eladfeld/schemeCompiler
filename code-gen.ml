@@ -64,14 +64,21 @@ let rec collect_sexp expr =
       | Symbol(s) -> Sexpr(String(s))::[Sexpr(Symbol(s))]
       | sexp -> [Sexpr(sexp)] in
     List.concat (List.map (fun sexpr -> expand_sexpr sexpr) sexpr_list);;
+    
+    exception X_my_exception of expr;;
+
 
   let rec find_sexpr_offset sexp const_tbl = 
     match const_tbl with 
     | entry::rest -> let (cur_sexpr, (offset, _)) = entry in
-        let Sexpr(in_sexp) = sexp in
-        let Sexpr(cur_sexpr) = cur_sexpr in  
-        if (sexpr_eq in_sexp cur_sexpr) then (string_of_int offset) else find_sexpr_offset sexp rest
+        if (cur_sexpr = sexp) then (string_of_int offset) else find_sexpr_offset sexp rest
     | [] -> "---------WARNING NO SUCH CONST DEFINED-------------";;
+
+  let rec find_fvar_offset name fvars =
+    match fvars with 
+    |entry::rest -> let (cur_name, offset) = entry in 
+        if(name = cur_name) then string_of_int offset else find_fvar_offset name rest
+    |[] -> "---------WARNING NO SUCH FREE VAR DEFINED-------------";;
 
   let rec build_const_tbl sexprs const_tbl current_offset=
     let sexpr_to_const_entry sexpr const_tbl current_offset=
@@ -116,28 +123,45 @@ let rec collect_sexp expr =
       | first::rest -> (first, index)::(build_fvars_tbl rest (index+1))
       | [] -> [];;
 
+  
 
   let rec expr_to_string consts fvars e = 
     match e with 
     | Const'(c) -> "mov rax,const_tbl+" ^ find_sexpr_offset c consts^ "\n"
-    (* | If'(test,dit,dif) -> 
+    | Var'(VarParam(_,minor)) -> "mov rax, qword[rbp + 8*(4+" ^ (string_of_int minor) ^ ")]\n"
+    | Set'(Var'(VarParam'(_, minor)), vl) -> (expr_to_string vl) ^ "mov qword [rbp + 8*(4+" ^ (string_of_int minor) ^ ")], rax\nmov rax, sob_void\n"
+    | Var'(VarBound(_,major,minor)) -> "mov rax, qword[rbp + 8*2]\nmov rax, qword[rax + 8 * " ^ string_of_int major ^ "]\nmov rax, qword[rax + 8 * " ^ (string_of_int minor) ^ "]\n"
+    | Set'(Var'(VarBound'(_,major,minor)), vl) -> (expr_to_string vl) ^ "mov rbx, qword [rbp + 8 ∗ 2]\nmov rbx, qword [rbx + 8 ∗"^string_of_int major^ "]\nmov qword [rbx + 8 ∗" ^ string_of_int minor ^"], rax\nmov rax, sob_void\n"
+    | Var'(VarFree(name)) -> "mov rax, qword[fvar_tbl+" ^ find_fvar_offset name fvars^"]\n" 
+    | Set(Var'(VarFree'(v)),vl) -> (expr_to_string vl) ^ "mov qword [" ^ find_fvar_offset v fvars "],rax\nmov rax,sob_void\n"
+    | Seq'(seq) -> List.concat "" (List.map (fun expr -> expr_to_string consts fvars expr) seq) 
+    | Or'(ors) -> or_expr_to_string consts fvars ors 
+    | If'(test,dit,dif) -> if_expr_to_string consts fvars test dit dif
+    | BoxGet'(vr) -> (expr_to_string vr) ^ "mov rax, qword[rax]"
+    (* 
     | LambdaSimple'(params,body) -> 
     | LambdaOpt'(mandatory, optional, body) -> 
-    | Or'(ors) -> 
+    
     | Set'(vr,Box'(vr2)) -> 
     | Set'(vr,vl) -> 
-    | Seq'(seq) ->  
+     
     | Def'(vr,vl) ->
     | Applic'(body,args) -> 
     | ApplicTP'(body,args) -> 
-    | Var'(VarFree(name)) -> 
-    | Var'(VarParam(name,minor)) -> 
-    | Var'(VarBound(name,major,minor)) -> 
     | Box'(vr) -> 
-    | BoxGet'(vr) ->
+    
     | BoxSet'(vr,vl) -> 
       *)
     |_ -> raise X_not_yet_implemented;;
+
+    and or_expr_to_string consts fvars ors = 
+
+    and if_expr_to_string consts fvars test dit dif =
+    
+
+
+
+
 
 module Code_Gen : CODE_GEN = struct
   let make_consts_tbl asts = 
@@ -171,9 +195,10 @@ let test_make_const_table str=
   let sexprs_list = List.fold_left (fun acc ast -> List.append acc (collect_sexp ast)) [] (List.map (fun tag_parsed -> Semantics.run_semantics tag_parsed) (Tag_Parser.tag_parse_expressions (Reader.read_sexprs str))) in
   let sexprs_set = remove_dups sexprs_list [] in
   let sorted_sexprs_list = expand_sexpr_list sexprs_set  in
-  (* let sorted_sexprs_list = List.append [Void; Sexpr(Nil) ; Sexpr(Bool(true)) ; Sexpr(Bool(false))] sorted_sexprs_list in *)
+  let sorted_sexprs_list = List.append [ Void; Sexpr(Nil) ; Sexpr(Bool(true)) ; Sexpr(Bool(false))] sorted_sexprs_list in
   let sorted_sexprs_set = remove_dups sorted_sexprs_list [] in 
   build_const_tbl sorted_sexprs_set [] 0 ;;
+
 
 
 let test_make_fvars_table str = 
@@ -182,4 +207,12 @@ let test_make_fvars_table str =
   build_fvars_tbl fvars_set 0;;
 
 
-  
+
+let test_generate_code str= 
+  let consts = test_make_const_table str in
+  let fvars = test_make_fvars_table str in
+  let ast = List.hd (List.map Semantics.run_semantics
+                           (Tag_Parser.tag_parse_expressions
+                              (Reader.read_sexprs str))) in
+
+expr_to_string consts fvars ast;;
