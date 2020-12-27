@@ -116,6 +116,29 @@ let rec collect_sexp expr =
       | first::rest -> (first, index)::(build_fvars_tbl rest (index+1))
       | [] -> [];;
 
+
+  let rec expr_to_string consts fvars e = 
+    match e with 
+    | Const'(c) -> "mov rax,const_tbl+" ^ find_sexpr_offset c consts^ "\n"
+    (* | If'(test,dit,dif) -> 
+    | LambdaSimple'(params,body) -> 
+    | LambdaOpt'(mandatory, optional, body) -> 
+    | Or'(ors) -> 
+    | Set'(vr,Box'(vr2)) -> 
+    | Set'(vr,vl) -> 
+    | Seq'(seq) ->  
+    | Def'(vr,vl) ->
+    | Applic'(body,args) -> 
+    | ApplicTP'(body,args) -> 
+    | Var'(VarFree(name)) -> 
+    | Var'(VarParam(name,minor)) -> 
+    | Var'(VarBound(name,major,minor)) -> 
+    | Box'(vr) -> 
+    | BoxGet'(vr) ->
+    | BoxSet'(vr,vl) -> 
+      *)
+    |_ -> raise X_not_yet_implemented;;
+
 module Code_Gen : CODE_GEN = struct
   let make_consts_tbl asts = 
     let sexprs_list = List.fold_left (fun acc ast -> List.append acc (collect_sexp ast)) [] asts in
@@ -131,7 +154,7 @@ module Code_Gen : CODE_GEN = struct
     let fvars_set = remove_dups fvars_list [] in
     build_fvars_tbl fvars_set 0;;
     
-  let generate consts fvars e = raise X_not_yet_implemented;;
+  let generate consts fvars e = expr_to_string consts fvars e;;
 end;;
 
 let test_collect_sexp str = 
@@ -157,3 +180,6 @@ let test_make_fvars_table str =
   let fvars_list = List.fold_left (fun acc ast -> List.append acc (collect_fvars ast)) [] (List.map (fun tag_parsed -> Semantics.run_semantics tag_parsed) (Tag_Parser.tag_parse_expressions (Reader.read_sexprs str))) in
   let fvars_set = remove_dups fvars_list [] in
   build_fvars_tbl fvars_set 0;;
+
+
+  

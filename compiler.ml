@@ -65,6 +65,7 @@ section .data
 const_tbl:
 " ^ (String.concat "\n" (List.map constant_bytes consts_tbl)) ^ "
 
+
 ;;; These macro definitions are required for the primitive
 ;;; definitions in the epilogue to work properly
 %define SOB_VOID_ADDRESS const_tbl+" ^ (string_of_int (fst (List.assoc Void consts_tbl))) ^ "
@@ -131,7 +132,8 @@ try
   let infile = Sys.argv.(1) in  
 
   (* load the input file and stdlib *)
-  let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in
+  (* let code =  (file_to_string "stdlib.scm") ^ (file_to_string infile) in -------------------------------------------REMEMBER TO REMOVE THIS COMMENT--------------------------*)
+  let code =  "" ^ (file_to_string infile) in
 
   (* generate asts for all the code *)
   let asts = string_to_asts code in
@@ -156,3 +158,5 @@ try
 
 (* raise an exception if the input file isn't found *)
 with Invalid_argument(x) -> raise X_missing_input_file;;
+
+
