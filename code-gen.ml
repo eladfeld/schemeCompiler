@@ -146,8 +146,7 @@ let rec collect_sexp expr =
     | Box'(v) -> "X_not_yet_implemented"
     | BoxGet'(v) -> "X_not_yet_implemented"
     | BoxSet'(v,f) -> "X_not_yet_implemented"
-    | LambdaSimple'(params,body) ->  lambda_expr_to_string consts fvars body depth
-    | Applic'(body,args) -> applic_expr_to_string consts fvars body args depth
+    | LambdaSimple'(params,body) -> "MAKE_EXT_ENV " ^ (depth + 1)  params ^ 
     (* | LambdaOpt'(mandatory, optional, body) -> 
     
     | Set'(vr,Box'(vr2)) -> 
@@ -159,45 +158,13 @@ let rec collect_sexp expr =
       *)
     |_ -> raise X_not_yet_implemented 
 
-    and applic_expr_to_string consts fvars body args depth = 
-      let n = string_of_int (List.length args) in
-      let push_args_code = List.fold_left (fun acc arg -> acc ^ (expr_to_string consts fvars arg depth) ^ "push rax\n") "" args in
-      push_args_code ^ "push " ^ n ^ "\n" ^(expr_to_string consts fvars body depth) ^
-      "CLOSURE_ENV rbx, rax\n" ^
-      "push rbx\n" ^
-      "CLOSURE_CODE rbx, rax\n" ^
-      "call rbx\n" ^
-      "add rsp,8*1 ;pop env\n" ^
-      "pop rbx     ;pop arg count\n" ^
-      "shl rbx,3   ;rbx = rbx*8\n" ^
-      "add rsp,rbx ;pop args\n"
-    
-    
-    
-      and lambda_expr_to_string consts fvars body depth =
-      let num = next () in
-      let lcode = "Lcode" ^ (string_of_int num) in
-      let lcont = "Lcont" ^ (string_of_int num) in
-      "MAKE_EXT_ENV " ^ (string_of_int depth) ^ 
-      "\nmov rbx, rax\n"^
-      "MAKE_CLOSURE(rax, rbx, "  ^ lcode ^ ")\n"^
-      "jmp " ^ lcont ^ "\n" ^
-      lcode ^ ":\n" ^
-      "push rbp\n" ^
-      "mov rbp, rsp\n" ^
-      expr_to_string consts fvars body (depth + 1) ^
-      "leave\n" ^
-      "ret\n" ^
-      lcont ^ ":\n"
-
     and or_expr_to_string consts fvars ors depth= 
       let ext_label = "Lexit" ^ (string_of_int (next ()))  in
         (List.fold_left (fun acc o -> acc ^ (expr_to_string consts fvars o depth)  ^"cmp rax, sob_false\njne " ^ ext_label ^ "\n" ) "" ors) ^ ext_label ^":\n"
 
     and if_expr_to_string consts fvars test dit dif depth=
-      let num = next () in
-      let else_label = "Lelse" ^ (string_of_int num) in 
-      let exit_label = "Lexit" ^ (string_of_int num) in
+      let else_label = "Lelse" ^ (string_of_int (next ())) in 
+      let exit_label = "Lexit" ^ (string_of_int (next ())) in
        (expr_to_string consts fvars test depth) ^ "cmp rax, sob_false\nje " ^ else_label ^ "\n" ^
       (expr_to_string consts fvars dit depth) ^ "jmp " ^ exit_label ^ "\n" ^
       else_label ^ ":\n" ^
@@ -224,7 +191,7 @@ module Code_Gen : CODE_GEN = struct
     let fvars_set = remove_dups fvars_list [] in
     build_fvars_tbl fvars_set 0;;
     
-  let generate consts fvars e = expr_to_string consts fvars e 0;;
+  let generate consts fvars e = expr_to_string consts fvars e;;
 end;;
 
 let test_collect_sexp str = 
@@ -257,7 +224,7 @@ let test_make_fvars_table str =
 let test_generate_code str= 
   let consts = test_make_const_table str in
   let fvars = test_make_fvars_table str in
-  let code = List.fold_left (fun acc ast -> acc ^ (expr_to_string consts fvars ast 0)) "" (List.map Semantics.run_semantics
+  let code = List.fold_left (fun acc ast -> acc ^ (expr_to_string consts fvars ast)) "" (List.map Semantics.run_semantics
                            (Tag_Parser.tag_parse_expressions
                               (Reader.read_sexprs str))) in
   Printf.printf "%s" code;;
