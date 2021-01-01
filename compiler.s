@@ -166,6 +166,34 @@
 %endmacro
 
 %define MAKE_LITERAL_SYMBOL(str_ptr) MAKE_LITERAL T_SYMBOL,dq str_ptr 
+
+%macro MAKE_EXT_ENV 1
+	
+	MALLOC rax, 8 * (%1 + 1) 					;allocating external Envaioment in size |env| + 1
+	mov rcx,[rbp + 8*3]							;rcx = argc
+	MALLOC [rax], rcx * 8						;creating a new vector holding the parameters from the stack in size of argc
+	
+	mov rdx, [rax]								;rdx = extendEnv[0]
+	%%param_loop:								;loop throw the params on the stack and copy them to the new vector of params
+		mov rbx,[rbp + 8 * (3+rcx)]				;rbx = param_i	
+		mov [rdx + (8 * (rcx - 1))], rbx		;ExtEnv[0][i] = param_i
+	loop %%param_loop
+	
+	mov rdx,[rbp+8*2]							; rdx=Env
+	mov rbx,0									; i=0
+	mov rcx,1									; j=1
+	
+	%%copy_env:
+		cmp rbx,%1
+		jae %%end_copy_env						; if i < | Env|
+		mov rdi,[rdx+rbx]						; rdi = Env[i]
+		mov [rax+rcx],rdi						; ExtEnv[j] = Env[i]
+		inc rbx
+		inc rcx
+		jmp %%copy_env
+	%%end_copy_env:
+	
+%endmacro
 ;;-------------------------------------------------------------------
 	
 ;;; Macros and routines for printing Scheme OBjects to STDOUT
