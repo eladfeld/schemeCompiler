@@ -135,18 +135,19 @@ let rec collect_sexp expr =
     match e with 
     | Const'(c) -> "mov rax,const_tbl+" ^ find_sexpr_offset c consts^ "\n"
     | Var'(VarParam(_,minor)) -> "mov rax, qword[rbp + 8*(4+" ^ (string_of_int minor) ^ ")]\n"
-    | Set'(VarParam(_, minor), vl) -> (expr_to_string consts fvars vl) depth ^ "mov qword [rbp + 8*(4+" ^ (string_of_int minor) ^ ")], rax\nmov rax, sob_void\n"
+    | Set'(VarParam(_, minor), vl) -> (expr_to_string consts fvars vl) depth ^ "mov qword [rbp + 8*(4+" ^ (string_of_int minor) ^ ")], rax\nmov rax, SOB_VOID_ADDRESS\n"
     | Var'(VarBound(_,major,minor)) -> "mov rax, qword[rbp + 8*2]\nmov rax, qword[rax + 8 * " ^ string_of_int major ^ "]\nmov rax, qword[rax + 8 * " ^ (string_of_int minor) ^ "]\n"
-    | Set'(VarBound(_,major,minor), vl) -> (expr_to_string consts fvars vl depth) ^ "mov rbx, qword [rbp + 8 ∗ 2]\nmov rbx, qword [rbx + 8 ∗"^string_of_int major^ "]\nmov qword [rbx + 8 ∗" ^ string_of_int minor ^"], rax\nmov rax, sob_void\n"
+    | Set'(VarBound(_,major,minor), vl) -> (expr_to_string consts fvars vl depth) ^ "mov rbx, qword [rbp + 8 ∗ 2]\nmov rbx, qword [rbx + 8 ∗"^string_of_int major^ "]\nmov qword [rbx + 8 ∗" ^ string_of_int minor ^"], rax\nmov rax, SOB_VOID_ADDRESS\n"
     | Var'(VarFree(name)) -> "mov rax, qword[fvar_tbl+" ^ find_fvar_offset name fvars^"]\n" 
-    | Set'(VarFree(v),vl) -> (expr_to_string consts fvars vl depth) ^ "mov qword [" ^ find_fvar_offset v fvars ^ "],rax\nmov rax,sob_void\n"
+    | Set'(VarFree(v),vl) -> (expr_to_string consts fvars vl depth) ^ "mov qword [" ^ find_fvar_offset v fvars ^ "],rax\nmov rax,SOB_VOID_ADDRESS\n"
     | Seq'(seq) -> String.concat "" (List.map (fun expr -> expr_to_string consts fvars expr depth) seq) 
     | Or'(ors) -> or_expr_to_string consts fvars ors depth
     | If'(test,dit,dif) -> if_expr_to_string consts fvars test dit dif depth
     | Box'(v) -> "X_not_yet_implemented"
     | BoxGet'(v) -> "X_not_yet_implemented"
     | BoxSet'(v,f) -> "X_not_yet_implemented"
-    | LambdaSimple'(params,body) -> "MAKE_EXT_ENV " ^ (depth + 1)  params ^ 
+    | LambdaSimple'(params,body) ->  lambda_expr_to_string consts fvars body depth
+    | Applic'(body,args) -> applic_expr_to_string consts fvars body args depth
     (* | LambdaOpt'(mandatory, optional, body) -> 
     
     | Set'(vr,Box'(vr2)) -> 
@@ -158,14 +159,46 @@ let rec collect_sexp expr =
       *)
     |_ -> raise X_not_yet_implemented 
 
+    and applic_expr_to_string consts fvars body args depth = 
+      let n = string_of_int (List.length args) in
+      let push_args_code = List.fold_left (fun acc arg -> acc ^ (expr_to_string consts fvars arg depth) ^ "push rax\n") "" args in
+      push_args_code ^ "push " ^ n ^ "\n" ^(expr_to_string consts fvars body depth) ^
+      "CLOSURE_ENV rbx, rax\n" ^
+      "push rbx\n" ^
+      "CLOSURE_CODE rbx, rax\n" ^
+      "call rbx\n" ^
+      "add rsp,8*1 ;pop env\n" ^
+      "pop rbx     ;pop arg count\n" ^
+      "shl rbx,3   ;rbx = rbx*8\n" ^
+      "add rsp,rbx ;pop args\n"
+    
+    
+    
+      and lambda_expr_to_string consts fvars body depth =
+      let num = next () in
+      let lcode = "Lcode" ^ (string_of_int num) in
+      let lcont = "Lcont" ^ (string_of_int num) in
+      "MAKE_EXT_ENV " ^ (string_of_int depth) ^ 
+      "\nmov rbx, rax\n"^
+      "MAKE_CLOSURE(rax, rbx, "  ^ lcode ^ ")\n"^
+      "jmp " ^ lcont ^ "\n" ^
+      lcode ^ ":\n" ^
+      "push rbp\n" ^
+      "mov rbp, rsp\n" ^
+      expr_to_string consts fvars body (depth + 1) ^
+      "leave\n" ^
+      "ret\n" ^
+      lcont ^ ":\n"
+
     and or_expr_to_string consts fvars ors depth= 
       let ext_label = "Lexit" ^ (string_of_int (next ()))  in
-        (List.fold_left (fun acc o -> acc ^ (expr_to_string consts fvars o depth)  ^"cmp rax, sob_false\njne " ^ ext_label ^ "\n" ) "" ors) ^ ext_label ^":\n"
+        (List.fold_left (fun acc o -> acc ^ (expr_to_string consts fvars o depth)  ^"cmp rax, SOB_FALSE_ADDRESS\njne " ^ ext_label ^ "\n" ) "" ors) ^ ext_label ^":\n"
 
     and if_expr_to_string consts fvars test dit dif depth=
-      let else_label = "Lelse" ^ (string_of_int (next ())) in 
-      let exit_label = "Lexit" ^ (string_of_int (next ())) in
-       (expr_to_string consts fvars test depth) ^ "cmp rax, sob_false\nje " ^ else_label ^ "\n" ^
+      let num = next () in
+      let else_label = "Lelse" ^ (string_of_int num) in 
+      let exit_label = "Lexit" ^ (string_of_int num) in
+       (expr_to_string consts fvars test depth) ^ "cmp rax, SOB_FALSE_ADDRESS\nje " ^ else_label ^ "\n" ^
       (expr_to_string consts fvars dit depth) ^ "jmp " ^ exit_label ^ "\n" ^
       else_label ^ ":\n" ^
       (expr_to_string consts fvars dif depth) ^
@@ -173,7 +206,26 @@ let rec collect_sexp expr =
     
 
 
-
+      let primitives =
+        [
+          (* Type queries  *)
+          "boolean?"; "flonum?"; "rational?";
+          "pair?"; "null?"; "char?"; "string?";
+          "procedure?"; "symbol?";
+          (* String procedures *)
+          "string-length"; "string-ref"; "string-set!";
+          "make-string"; "symbol->string";
+          (* Type conversions *)
+          "char->integer"; "integer->char"; "exact->inexact";
+          (* Identity test *)
+          "eq?";
+          (* Arithmetic ops *)
+          "+"; "*"; "/"; "="; "<";
+          (* Additional rational numebr ops *)
+          "numerator"; "denominator"; "gcd";
+          (* you can add yours here *)
+          "apply" ; "car" ; "cdr" ; "cons" ; "set-car!" ; "set-cdr!"
+        ]
 
 
 module Code_Gen : CODE_GEN = struct
@@ -188,10 +240,11 @@ module Code_Gen : CODE_GEN = struct
     
   let make_fvars_tbl asts = 
     let fvars_list = List.fold_left (fun acc ast -> List.append acc (collect_fvars ast)) [] asts in
+    let fvars_list = List.append fvars_list primitives in
     let fvars_set = remove_dups fvars_list [] in
     build_fvars_tbl fvars_set 0;;
     
-  let generate consts fvars e = expr_to_string consts fvars e;;
+  let generate consts fvars e = expr_to_string consts fvars e 0;;
 end;;
 
 let test_collect_sexp str = 
@@ -212,10 +265,9 @@ let test_make_const_table str=
   let sorted_sexprs_set = remove_dups sorted_sexprs_list [] in 
   build_const_tbl sorted_sexprs_set [] 0 ;;
 
-
-
 let test_make_fvars_table str = 
   let fvars_list = List.fold_left (fun acc ast -> List.append acc (collect_fvars ast)) [] (List.map (fun tag_parsed -> Semantics.run_semantics tag_parsed) (Tag_Parser.tag_parse_expressions (Reader.read_sexprs str))) in
+  let fvars_list = List.append fvars_list primitives in
   let fvars_set = remove_dups fvars_list [] in
   build_fvars_tbl fvars_set 0;;
 
@@ -224,7 +276,11 @@ let test_make_fvars_table str =
 let test_generate_code str= 
   let consts = test_make_const_table str in
   let fvars = test_make_fvars_table str in
-  let code = List.fold_left (fun acc ast -> acc ^ (expr_to_string consts fvars ast)) "" (List.map Semantics.run_semantics
+  let code = List.fold_left (fun acc ast -> acc ^ (expr_to_string consts fvars ast 0)) "" (List.map Semantics.run_semantics
                            (Tag_Parser.tag_parse_expressions
                               (Reader.read_sexprs str))) in
   Printf.printf "%s" code;;
+
+
+
+  
