@@ -146,15 +146,13 @@ let rec collect_sexp expr =
     | Box'(v) -> "X_not_yet_implemented"
     | BoxGet'(v) -> "X_not_yet_implemented"
     | BoxSet'(v,f) -> "X_not_yet_implemented"
-    | LambdaSimple'(params,body) ->  lambda_expr_to_string consts fvars body depth
+    | LambdaSimple'(params,body) ->  lambda_expr_to_string consts fvars params body depth
     | Applic'(body,args) -> applic_expr_to_string consts fvars body args depth
-    (* | LambdaOpt'(mandatory, optional, body) -> 
-    
-    | Set'(vr,Box'(vr2)) -> 
-    | Set'(vr,vl) -> 
-     
+    | ApplicTP'(body,args) -> raise X_syntax_error
+    | LambdaOpt'(mandatory, optional, body) -> lambda_optional_expr_to_string consts fvars mandatory optional body depth
+    (*| Set'(vr,Box'(vr2)) -> 
+    | Set'(vr,vl) ->  
     | Def'(vr,vl) ->
-    | Applic'(body,args) -> 
     | ApplicTP'(body,args) -> 
       *)
     |_ -> raise X_not_yet_implemented 
@@ -162,7 +160,9 @@ let rec collect_sexp expr =
     and applic_expr_to_string consts fvars body args depth = 
       let n = string_of_int (List.length args) in
       let push_args_code = List.fold_left (fun acc arg -> acc ^ (expr_to_string consts fvars arg depth) ^ "push rax\n") "" args in
-      push_args_code ^ "push " ^ n ^ "\n" ^(expr_to_string consts fvars body depth) ^
+      push_args_code ^ 
+      "push " ^ n ^ "\n" ^
+      (expr_to_string consts fvars body depth) ^
       "CLOSURE_ENV rbx, rax\n" ^
       "push rbx\n" ^
       "CLOSURE_CODE rbx, rax\n" ^
@@ -173,12 +173,11 @@ let rec collect_sexp expr =
       "add rsp,rbx ;pop args\n"
     
     
-    
-      and lambda_expr_to_string consts fvars body depth =
+    and lambda_expr_to_string consts fvars params body depth =
       let num = next () in
-      let lcode = "Lcode" ^ (string_of_int num) in
+      let lcode = "Lcode" ^ (string_of_int num) in 
       let lcont = "Lcont" ^ (string_of_int num) in
-      "MAKE_EXT_ENV " ^ (string_of_int depth) ^ 
+      "MAKE_EXT_ENV " ^ (string_of_int depth) ^ ", " ^ (string_of_int (List.length params)) ^
       "\nmov rbx, rax\n"^
       "MAKE_CLOSURE(rax, rbx, "  ^ lcode ^ ")\n"^
       "jmp " ^ lcont ^ "\n" ^
@@ -189,6 +188,19 @@ let rec collect_sexp expr =
       "leave\n" ^
       "ret\n" ^
       lcont ^ ":\n"
+
+    and lambda_optional_expr_to_string consts fvars mandatory optional body depth =
+    let num = next () in
+    let lcode = "Lcode" ^ (string_of_int num) in 
+    let lcont = "Lcont" ^ (string_of_int num) in
+    let num_of_real_args = (string_of_int ((List.length mandatory) + 1)) in
+
+    "ADJUST_STACK_OPT " ^ num_of_real_args ^
+    "MAKE_EXT_ENV " ^ (string_of_int depth) ^ ", " ^ num_of_real_args ^
+
+
+
+
 
     and or_expr_to_string consts fvars ors depth= 
       let ext_label = "Lexit" ^ (string_of_int (next ()))  in
