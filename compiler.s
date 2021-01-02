@@ -215,16 +215,32 @@
 		%%make_pairs_loops:
 			cmp rcx,0
 			jb end_make_pairs_loop						
-			mov rbx,[rbp + 8 * rbx]				; rbx = current arg
-			MAKE_PAIR(rax,rbx,rdx)				; rax = Pair(current_arg,previous pair)
+			MAKE_PAIR(rax,[rbp + 8 * rbx],rdx)	; rax = Pair(current_arg,previous pair)
 			mov rdx,rax							; rdx = cdr
 			dec rbx
 			dec rcx
 			jmp make_pairs_loops
 		%%end_make_pairs_loop:
+		mov [rbp+ 8* (3 + %1)],rax				; optional arg = artificial pair
+		mov rcx, [rbp + (8 * 3)]				;put the number n from the stack in rcx
+		sub rcx, %1	
+												;we need to shift (3 + %1) elements rcx cells up
+		mov rax, 3 + %1
+		%%shift_stack_up:
+			cmp rax, 0							;we shift the stack up 3 + %1 time
+			jbe %%end_shift_stack_up				
+			mov rdx, rcx + rax
+			mov rbx, [rbp + (8 * rax)]
+			mov [rbp + (8 * rdx)], rbx			
+			dec rax								
+			jmp %%shift_stack_up
+		%%end_shift_stack_up:
+		mov [rbp+ 8 * (3+rcx)], %1
+		add rsp, rcx * 8
 	%%end_extra_args:
+; WARNING!!! need to check if the rbp register is needed and not rsp!! >>>>>>>>>>><<<<<<<<<<<<<<<<<<
 
-; ((lambda (a . b) b) 1 2)
+; ((lambda (a . b) b) 1 2 3)
 %endmacro
 ;;-------------------------------------------------------------------
 	

@@ -196,7 +196,7 @@ let rec collect_sexp expr =
     let num_of_real_args = (string_of_int ((List.length mandatory) + 1)) in
 
     "ADJUST_STACK_OPT " ^ num_of_real_args ^
-    "MAKE_EXT_ENV " ^ (string_of_int depth) ^ ", " ^ num_of_real_args ^
+    "MAKE_EXT_ENV " ^ (string_of_int depth) ^ ", " ^ num_of_real_args ^""
 
 
 

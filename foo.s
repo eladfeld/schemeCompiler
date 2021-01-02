@@ -24,12 +24,6 @@ MAKE_LITERAL_BOOL(0)
 
 MAKE_LITERAL_RATIONAL(1,1)
 
-MAKE_LITERAL_RATIONAL(2,1)
-
-MAKE_LITERAL_PAIR(const_tbl+23,const_tbl+1)
-
-MAKE_LITERAL_PAIR(const_tbl+6,const_tbl+40)
-
 
 
 ;;; These macro definitions are required for the primitive
@@ -120,7 +114,28 @@ user_code_fragment:
 ;;; The code you compiled will be added here.
 ;;; It will be executed immediately after the closures for 
 ;;; the primitive procedures are set up.
-mov rax,const_tbl+57
+mov rax,const_tbl+6
+push rax
+push 1
+MAKE_EXT_ENV 0, 1
+mov rbx, rax
+MAKE_CLOSURE(rax, rbx, Lcode1)
+jmp Lcont1
+Lcode1:
+push rbp
+mov rbp, rsp
+mov rax, qword[rbp + 8*(4+0)]
+leave
+ret
+Lcont1:
+CLOSURE_ENV rbx, rax
+push rbx
+CLOSURE_CODE rbx, rax
+call rbx
+add rsp,8*1 ;pop env
+pop rbx     ;pop arg count
+shl rbx,3   ;rbx = rbx*8
+add rsp,rbx ;pop args
 
 	call write_sob_if_not_void;;; Clean up the dummy frame, set the exit status to 0 ("success"), 
    ;;; and return from main
