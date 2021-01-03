@@ -188,7 +188,7 @@
 	mov [rax],rbx								; allocate Env[0] with size of argc
 	
 	; for (i = 0 , j = 1 ; i<|Env| ; i++,j++)
-	; 	ExtEnv[i] = Env[i]
+	; 	ExtEnv[j] = Env[i]
 	mov rcx,0									; i = 0
 	mov rbx,1 									; j = 1
 	%%copy_minors:
