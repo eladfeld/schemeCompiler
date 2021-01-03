@@ -362,11 +362,11 @@ let annotate_lexical_addresses e =
   annotate_lexical e [];;
 
 
-let annotate_tail_calls e = annotate_TC e false;;
+let annotate_tail_calls e = e (*annotate_TC e false*);;
 
 
 
-let box_set e =  reach_lambda e;; 
+let box_set e =  e (*reach_lambda e*);; 
 
 
 let run_semantics expr =

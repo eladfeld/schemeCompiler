@@ -62,6 +62,8 @@ fvar_tbl:
     resq " ^ string_of_int (List.length fvars_tbl) ^ "
 
 section .data
+msg db  \"here\",10
+len equ $ - msg
 const_tbl:
 " ^ (String.concat "\n" (List.map constant_bytes consts_tbl)) ^ "
 

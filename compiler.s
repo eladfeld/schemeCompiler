@@ -54,6 +54,15 @@
 
 %define PVAR(n) qword [rbp+(4+n)*WORD_SIZE]
 
+%macro  print_msg 0
+    mov     ecx, msg
+    mov     edx, len
+    mov     ebx, 1
+    mov     eax, 4
+    int     0x80
+%endmacro
+
+
 ; returns %2 allocated bytes in register %1
 ; Supports using with %1 = %2
 %macro MALLOC 2
@@ -168,29 +177,36 @@
 %define MAKE_LITERAL_SYMBOL(str_ptr) MAKE_LITERAL T_SYMBOL,dq str_ptr 
 
 ;making an extended envaiorment for a closure
+; %1 = depth
+; %2 = number of args
 %macro MAKE_EXT_ENV 2
 	
 	MALLOC rax, 8 * (%1 + 1) 					;allocating external Envaioment in size |env| + 1
-	MALLOC rbx, %2							;creating a new vector holding the parameters from the stack in size of argc
+	MALLOC rbx,  8 * %2							;creating a new vector holding the parameters from the stack in size of argc
 	mov [rax],rbx
 
-	mov rdx, [rax]								;rdx = extendEnv[0]
-	mov rcx,%2
-	%%param_loop:								;loop throw the params on the stack and copy them to the new vector of params
-		mov rbx,[rbp + 8 * (3+%2)]				;rbx = param_i	
-		mov [rdx + (8 * (%2 - 1))], rbx		;ExtEnv[0][i] = param_i
-	loop %%param_loop
+	mov rcx, %2
 	
-	mov rdx,[rbp+8*2]							; rdx=Env
+	%%param_loop:								;loop throw the params on the stack and copy them to the new vector of params
+		cmp rcx,0
+		jbe %%end_param_loop
+		mov rdx, [rbp - (8 * (%2 - rcx + 1)) ]
+		mov [rbx + (8 * (rcx - 1))], rdx 								
+		dec rcx
+	%%end_param_loop:
+	
+	
+	mov rdx,[rbp + (8 * 2)]							; rdx=Env
+	
 	mov rbx,0									; i=0
 	mov rcx,1									; j=1
 	
 	%%copy_env:
-		cmp rbx,%1
-		jae %%end_copy_env						; if i < | Env|
-		mov rdi,[rdx+rbx]						; rdi = Env[i]
-		mov [rax+rcx],rdi						; ExtEnv[j] = Env[i]
-		inc rbx
+		print_msg
+		cmp rcx ,%1 + 1
+		jae %%end_copy_env									; if i < | Env|
+		mov rbx, [rdx + (8 * (rcx + 1))]					; rdi = Env[i]
+		mov [rax + (8 * rcx)], rbx							; ExtEnv[j] = Env[i]
 		inc rcx
 		jmp %%copy_env
 	%%end_copy_env:

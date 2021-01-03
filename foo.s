@@ -13,6 +13,8 @@ fvar_tbl:
     resq 32
 
 section .data
+msg db  "here",10
+len equ $ - msg
 const_tbl:
 MAKE_VOID
 
@@ -22,7 +24,7 @@ MAKE_LITERAL_BOOL(1)
 
 MAKE_LITERAL_BOOL(0)
 
-MAKE_LITERAL_RATIONAL(1,1)
+MAKE_LITERAL_RATIONAL(3,1)
 
 
 
@@ -124,7 +126,28 @@ jmp Lcont1
 Lcode1:
 push rbp
 mov rbp, rsp
-mov rax, qword[rbp + 8*(4+0)]
+push 0
+MAKE_EXT_ENV 1, 0
+mov rbx, rax
+MAKE_CLOSURE(rax, rbx, Lcode2)
+jmp Lcont2
+Lcode2:
+push rbp
+mov rbp, rsp
+mov rax, qword[rbp + 8*2]
+mov rax, qword[rax + 8 * 0]
+mov rax, qword[rax + 8 * 0]
+leave
+ret
+Lcont2:
+CLOSURE_ENV rbx, rax
+push rbx
+CLOSURE_CODE rbx, rax
+call rbx
+add rsp,8*1 ;pop env
+pop rbx     ;pop arg count
+shl rbx,3   ;rbx = rbx*8
+add rsp,rbx ;pop args
 leave
 ret
 Lcont1:

@@ -1,0 +1,14 @@
+section .data:
+
+    msg db  "here"
+    len equ $ - msg
+
+
+%macro  print_msg 0
+    mov     ecx, msg
+    mov     edx, len
+    mov     ebx, 1
+    mov     eax, 4
+    int     0x80
+%endmacro
+
