@@ -24,7 +24,7 @@ MAKE_LITERAL_BOOL(1)
 
 MAKE_LITERAL_BOOL(0)
 
-MAKE_LITERAL_RATIONAL(3,1)
+MAKE_LITERAL_RATIONAL(5,1)
 
 
 
@@ -119,7 +119,7 @@ user_code_fragment:
 mov rax,const_tbl+6
 push rax
 push 1
-MAKE_EXT_ENV 0, 1
+MAKE_EXT_ENV 0
 mov rbx, rax
 MAKE_CLOSURE(rax, rbx, Lcode1)
 jmp Lcont1
@@ -127,16 +127,54 @@ Lcode1:
 push rbp
 mov rbp, rsp
 push 0
-MAKE_EXT_ENV 1, 0
+MAKE_EXT_ENV 1
 mov rbx, rax
 MAKE_CLOSURE(rax, rbx, Lcode2)
 jmp Lcont2
 Lcode2:
 push rbp
 mov rbp, rsp
+push 0
+MAKE_EXT_ENV 2
+mov rbx, rax
+MAKE_CLOSURE(rax, rbx, Lcode3)
+jmp Lcont3
+Lcode3:
+push rbp
+mov rbp, rsp
+push 0
+MAKE_EXT_ENV 3
+mov rbx, rax
+MAKE_CLOSURE(rax, rbx, Lcode4)
+jmp Lcont4
+Lcode4:
+push rbp
+mov rbp, rsp
 mov rax, qword[rbp + 8*2]
+mov rax, qword[rax + 8 * 2]
 mov rax, qword[rax + 8 * 0]
-mov rax, qword[rax + 8 * 0]
+leave
+ret
+Lcont4:
+CLOSURE_ENV rbx, rax
+push rbx
+CLOSURE_CODE rbx, rax
+call rbx
+add rsp,8*1 ;pop env
+pop rbx     ;pop arg count
+shl rbx,3   ;rbx = rbx*8
+add rsp,rbx ;pop args
+leave
+ret
+Lcont3:
+CLOSURE_ENV rbx, rax
+push rbx
+CLOSURE_CODE rbx, rax
+call rbx
+add rsp,8*1 ;pop env
+pop rbx     ;pop arg count
+shl rbx,3   ;rbx = rbx*8
+add rsp,rbx ;pop args
 leave
 ret
 Lcont2:

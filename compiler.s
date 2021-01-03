@@ -177,40 +177,47 @@
 %define MAKE_LITERAL_SYMBOL(str_ptr) MAKE_LITERAL T_SYMBOL,dq str_ptr 
 
 ;making an extended envaiorment for a closure
-; %1 = depth
-; %2 = number of args
-%macro MAKE_EXT_ENV 2
+; %1 = |Env|
+%macro MAKE_EXT_ENV 1
 	
-	MALLOC rax, 8 * (%1 + 1) 					;allocating external Envaioment in size |env| + 1
-	MALLOC rbx,  8 * %2							;creating a new vector holding the parameters from the stack in size of argc
-	mov [rax],rbx
+	MALLOC rax, 8 * (%1 + 1) 					; allocating external Env in size |env| + 1
 
-	mov rcx, %2
+	mov rcx,[rbp+8*3]							; rcx = argc
+	shl rcx,3
+	MALLOC rbx, rcx					
+	mov [rax],rbx								; allocate Env[0] with size of argc
 	
-	%%param_loop:								;loop throw the params on the stack and copy them to the new vector of params
-		cmp rcx,0
-		jbe %%end_param_loop
-		mov rdx, [rbp - (8 * (%2 - rcx + 1)) ]
-		mov [rbx + (8 * (rcx - 1))], rdx 								
-		dec rcx
-	%%end_param_loop:
+	; for (i = 0 , j = 1 ; i<|Env| ; i++,j++)
+	; 	ExtEnv[i] = Env[i]
+	mov rcx,0									; i = 0
+	mov rbx,1 									; j = 1
+	%%copy_minors:
+		cmp rcx,%1								; if i < |Env|
+		je %%end_copy_minors
+		mov rdx,[rbp + 8 *2]					; rdx = *Env
+		shl rcx,3
+		add rdx,rcx							; rdx = *Env[i]
+		shr rcx,3
+		mov rdx,[rdx]							; rdx = Env[i]
+		mov [rax+8*rbx],rdx 					; ExtEnv[j] = Env[i]
+		inc rcx									; i++
+		inc rbx									; j++
+		jmp %%copy_minors
+	%%end_copy_minors:
 	
-	
-	mov rdx,[rbp + (8 * 2)]							; rdx=Env
-	
-	mov rbx,0									; i=0
-	mov rcx,1									; j=1
-	
-	%%copy_env:
-		print_msg
-		cmp rcx ,%1 + 1
-		jae %%end_copy_env									; if i < | Env|
-		mov rbx, [rdx + (8 * (rcx + 1))]					; rdi = Env[i]
-		mov [rax + (8 * rcx)], rbx							; ExtEnv[j] = Env[i]
-		inc rcx
-		jmp %%copy_env
-	%%end_copy_env:
-	
+	; for (i= 0 ; i<argc ; i++)
+	; 	ExtEnv[0][i] = Param_i
+	mov rcx,0									; i = 0
+	%%copy_params:
+		cmp rcx,[rbp+8*3]						; if i < argc
+		jae %%end_copy_params
+		mov rdx,[rbp+8*(4+rcx)]					; rdx = param_i
+		mov rbx,[rax]							; rbx = *ExtEnv[0]
+		mov [rbx+rcx],rdx						; ExtEnv[0][i] = param_i
+		inc rcx									; i++
+		jmp %%copy_params
+	%%end_copy_params:
+
 %endmacro 
 
 

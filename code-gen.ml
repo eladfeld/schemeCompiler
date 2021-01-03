@@ -177,7 +177,7 @@ let rec collect_sexp expr =
       let num = next () in
       let lcode = "Lcode" ^ (string_of_int num) in 
       let lcont = "Lcont" ^ (string_of_int num) in
-      "MAKE_EXT_ENV " ^ (string_of_int depth) ^ ", " ^ (string_of_int (List.length params)) ^
+      "MAKE_EXT_ENV " ^ (string_of_int depth) ^ 
       "\nmov rbx, rax\n"^
       "MAKE_CLOSURE(rax, rbx, "  ^ lcode ^ ")\n"^
       "jmp " ^ lcont ^ "\n" ^
@@ -196,8 +196,7 @@ let rec collect_sexp expr =
     let num_of_real_args = (string_of_int ((List.length mandatory) + 1)) in
 
     "ADJUST_STACK_OPT " ^ num_of_real_args ^
-    "MAKE_EXT_ENV " ^ (string_of_int depth) ^ ", " ^ num_of_real_args ^""
-
+    "MAKE_EXT_ENV " ^ (string_of_int depth) ^ ""
 
 
 
