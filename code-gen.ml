@@ -159,7 +159,7 @@ let rec collect_sexp expr =
 
     and applic_expr_to_string consts fvars body args depth = 
       let n = string_of_int (List.length args) in
-      let push_args_code = List.fold_left (fun acc arg -> acc ^ (expr_to_string consts fvars arg depth) ^ "push rax\n") "" args in
+      let push_args_code = List.fold_right (fun  arg acc-> acc ^ (expr_to_string consts fvars arg depth) ^ "push rax\n")  args "" in
       push_args_code ^ 
       "push " ^ n ^ "\n" ^
       (expr_to_string consts fvars body depth) ^
@@ -193,11 +193,19 @@ let rec collect_sexp expr =
     let num = next () in
     let lcode = "Lcode" ^ (string_of_int num) in 
     let lcont = "Lcont" ^ (string_of_int num) in
-    let num_of_real_args = (string_of_int ((List.length mandatory) + 1)) in
-
-    "ADJUST_STACK_OPT " ^ num_of_real_args ^
-    "MAKE_EXT_ENV " ^ (string_of_int depth) ^ ""
-
+    let num_of_desired_args = (string_of_int ((List.length mandatory) + 1)) in
+    "MAKE_EXT_ENV " ^ (string_of_int depth) ^ 
+    "\nmov rbx, rax\n"^
+    "MAKE_CLOSURE(rax, rbx, "  ^ lcode ^ ")\n"^
+    "jmp " ^ lcont ^ "\n" ^
+    lcode ^ ":\n" ^ 
+    "FIX_STACK_LAMBDA_OPT " ^ num_of_desired_args ^"\n" ^
+    "push rbp\n" ^
+    "mov rbp, rsp\n" ^
+    expr_to_string consts fvars body (depth + 1) ^
+    "leave\n" ^
+    "ret\n" ^
+    lcont ^ ":\n"
 
 
 
