@@ -133,13 +133,13 @@ let rec collect_sexp expr =
 
   let rec expr_to_string consts fvars e depth= 
     match e with 
-    | Const'(c) -> "mov rax,const_tbl+" ^ find_sexpr_offset c consts^ "\n"
+    | Const'(c) -> "mov rax,const_tbl+" ^ (find_sexpr_offset c consts) ^ "\n"
     | Var'(VarParam(_,minor)) -> "mov rax, qword[rbp + 8*(4+" ^ (string_of_int minor) ^ ")]\n"
-    | Set'(VarParam(_, minor), vl) -> (expr_to_string consts fvars vl) depth ^ "mov qword [rbp + 8*(4+" ^ (string_of_int minor) ^ ")], rax\nmov rax, SOB_VOID_ADDRESS\n"
-    | Var'(VarBound(_,major,minor)) -> "mov rax, qword[rbp + 8*2]\nmov rax, qword[rax + 8 * " ^ string_of_int major ^ "]\nmov rax, qword[rax + 8 * " ^ (string_of_int minor) ^ "]\n"
-    | Set'(VarBound(_,major,minor), vl) -> (expr_to_string consts fvars vl depth) ^ "mov rbx, qword [rbp + 8 ∗ 2]\nmov rbx, qword [rbx + 8 ∗"^string_of_int major^ "]\nmov qword [rbx + 8 ∗" ^ string_of_int minor ^"], rax\nmov rax, SOB_VOID_ADDRESS\n"
-    | Var'(VarFree(name)) -> "mov rax, qword[fvar_tbl+" ^ find_fvar_offset name fvars^"]\n" 
-    | Set'(VarFree(v),vl) -> (expr_to_string consts fvars vl depth) ^ "mov qword [" ^ find_fvar_offset v fvars ^ "],rax\nmov rax,SOB_VOID_ADDRESS\n"
+    | Set'(VarParam(_, minor), vl) -> (expr_to_string consts fvars vl depth) ^ "mov qword [rbp + 8*(4+" ^ (string_of_int minor) ^ ")], rax\nmov rax, SOB_VOID_ADDRESS\n"
+    | Var'(VarBound(_,major,minor)) -> "mov rax, qword[rbp + 8*2]\nmov rax, qword[rax + 8 * " ^ (string_of_int major) ^ "]\nmov rax, qword[rax + 8 * " ^ (string_of_int minor) ^ "]\n"
+    | Set'(VarBound(_,major,minor), vl) -> (expr_to_string consts fvars vl depth) ^ "mov rbx, qword [rbp + 8 * 2]\nmov rbx, qword [rbx + 8 *"^(string_of_int major)^ "]\nmov qword [rbx + 8 *" ^ (string_of_int minor) ^"], rax\nmov rax, SOB_VOID_ADDRESS\n"
+    | Var'(VarFree(name)) -> "mov rax, qword[fvar_tbl+" ^ (find_fvar_offset name fvars) ^"]\n" 
+    | Set'(VarFree(v),vl) -> (expr_to_string consts fvars vl depth) ^ "mov qword [fvar_tbl+" ^ (find_fvar_offset v fvars) ^ "],rax\nmov rax,SOB_VOID_ADDRESS\n"
     | Seq'(seq) -> String.concat "" (List.map (fun expr -> expr_to_string consts fvars expr depth) seq) 
     | Or'(ors) -> or_expr_to_string consts fvars ors depth
     | If'(test,dit,dif) -> if_expr_to_string consts fvars test dit dif depth

@@ -181,7 +181,6 @@
 %macro MAKE_EXT_ENV 1
 	
 	MALLOC rax, 8 * (%1 + 1) 					; allocating external Env in size |env| + 1
-
 	mov rcx,[rbp+8*3]							; rcx = argc
 	shl rcx,3
 	MALLOC rbx, rcx					
@@ -213,7 +212,7 @@
 		jae %%end_copy_params
 		mov rdx,[rbp+8*(4+rcx)]					; rdx = param_i
 		mov rbx,[rax]							; rbx = *ExtEnv[0]
-		mov [rbx+rcx],rdx						; ExtEnv[0][i] = param_i
+		mov [rbx+(8*rcx)],rdx						; ExtEnv[0][i] = param_i
 		inc rcx									; i++
 		jmp %%copy_params
 	%%end_copy_params:
