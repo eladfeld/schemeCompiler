@@ -308,8 +308,57 @@ module Prims : PRIMS = struct
       ] in
     String.concat "\n\n" (List.map (fun (a, b, c) -> (b c a)) misc_parts);;
 
+    let basic_ops = "
+    cons:
+      push rbp
+      mov rbp, rsp
+      mov rsi, PVAR(0)          ;rsi = car
+      mov rdi, PVAR(1)          ;rdi = cdr
+      MAKE_PAIR(rax, rsi, rdi)
+      pop rbp
+      ret
+    
+    apply:
+      ;-----------------------------< not yet implemented!!!! >-----------------------------------
+
+    car:
+      push rbp
+      mov rbp,rsp
+      mov rdi,PVAR(0)           ; rdi = pair
+      CAR rax,rdi
+      pop rbp
+      ret
+    
+      cdr:
+        push rbp
+        mov rbp, rsp
+        mov rdi, PVAR(0)          ;rsi = pair
+        CDR rax, rdi
+        pop rbp
+        ret
+
+      set_car:
+        push rbp
+        mov rbp, rsp
+        mov rdi, PVAR(0)          ;rdi = pair
+        mov rsi, PVAR(1)          ;rsi = value
+        mov [rdi + TYPE_SIZE], rsi
+        pop rbp
+        ret
+
+      set_cdr:
+        push rbp
+        mov rbp, rsp
+        mov rdi, PVAR(0)          ;rdi = pair
+        mov rsi, PVAR(1)          ;rsi = value
+        mov [rdi + WORD_SIZE +TYPE_SIZE], rsi
+        pop rbp
+        ret
+    "
+
+    
   (* This is the interface of the module. It constructs a large x86 64-bit string using the routines
      defined above. The main compiler pipline code (in compiler.ml) calls into this module to get the
      string of primitive procedures. *)
-  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops];;
+  let procs = String.concat "\n\n" [type_queries ; numeric_ops; misc_ops; basic_ops];;
 end;;

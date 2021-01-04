@@ -126,7 +126,7 @@ let rec collect_sexp expr =
 
   let rec build_fvars_tbl fvars index= 
       match fvars with
-      | first::rest -> (first, index)::(build_fvars_tbl rest (index+1))
+      | first::rest -> (first, index)::(build_fvars_tbl rest (index+8))
       | [] -> [];;
 
   
@@ -143,19 +143,53 @@ let rec collect_sexp expr =
     | Seq'(seq) -> String.concat "" (List.map (fun expr -> expr_to_string consts fvars expr depth) seq) 
     | Or'(ors) -> or_expr_to_string consts fvars ors depth
     | If'(test,dit,dif) -> if_expr_to_string consts fvars test dit dif depth
-    | Box'(v) -> "X_not_yet_implemented"
-    | BoxGet'(v) -> "X_not_yet_implemented"
-    | BoxSet'(v,f) -> "X_not_yet_implemented"
+    | Box'(VarParam(_,minor)) -> box_to_string consts fvars (string_of_int minor) depth
+    | BoxGet'(var) -> box_get_to_string consts fvars var depth
+    | BoxSet'(var,value) -> box_set_to_string consts fvars var depth value 
     | LambdaSimple'(params,body) ->  lambda_expr_to_string consts fvars params body depth
     | Applic'(body,args) -> applic_expr_to_string consts fvars body args depth
-    | ApplicTP'(body,args) -> raise X_syntax_error
+    | ApplicTP'(body,args) -> applicTP_expr_to_string consts fvars body args depth
     | LambdaOpt'(mandatory, optional, body) -> lambda_optional_expr_to_string consts fvars mandatory optional body depth
-    (*| Set'(vr,Box'(vr2)) -> 
-    | Set'(vr,vl) ->  
-    | Def'(vr,vl) ->
-    | ApplicTP'(body,args) -> 
-      *)
     |_ -> raise X_not_yet_implemented 
+
+    and box_to_string consts fvars minor depth =
+      "mov rax, qword[rbp + 8 * (4 + " ^ minor ^ ")]\n" ^
+      "push SOB_NIL_ADDRESS ; something for the cdr\n" ^
+      "push rax             ; car\n" ^
+      "push 2               ; argc\n" ^
+      "push SOB_NIL_ADDRESS ;fake env\n" ^
+      "call cons\n" ^
+      "add rsp,8*1          ;pop env\n" ^
+      "pop rbx              ;pop argc\n" ^
+      "shl rbx,3            ;rbx=rbx*8\n" ^
+      "add rsp,rbx          ;pop args\n" ^
+      "mov qword[rbp + 8 * (4 + " ^ minor ^ ")],rax\n"
+
+    and box_get_to_string consts fvars var depth = 
+     expr_to_string consts fvars (Var'(var)) depth ^
+     "push rax\n"   ^
+     "push 1                 ;push argc\n" ^
+     "push SOB_NIL_ADDRESS   ;fake env\n" ^
+     "call car\n"   ^
+     "add rsp,8*1            ;pop env\n" ^
+     "pop rbx                ;pop argc\n"  ^
+     "shl rbx,3              ;rbx=rbx*8 \n" ^
+     "add rsp, rbx           ;pop args\n" 
+     
+    and box_set_to_string consts fvars var depth value = 
+     expr_to_string consts fvars value depth ^
+     "push rax\n" ^
+     expr_to_string consts fvars (Var'(var)) depth ^
+     "push rax\n" ^
+     "push 2\n" ^
+     "push SOB_NIL_ADDRESS\n" ^
+     "call set_car\n" ^
+     "add rsp, 8              ;pop env\n" ^
+     "pop rbx                 ;pop argc\n\n" ^
+     "shl rbx, 3              ;rbx=rbx*8\n" ^
+     "add rsp, rbx            ;pop args\n"
+     
+     
 
     and applic_expr_to_string consts fvars body args depth = 
       let n = string_of_int (List.length args) in
@@ -172,7 +206,19 @@ let rec collect_sexp expr =
       "shl rbx,3   ;rbx = rbx*8\n" ^
       "add rsp,rbx ;pop args\n"
     
-    
+    and applicTP_expr_to_string consts fvars body args depth =
+      let n = string_of_int (List.length args) in
+      let push_args_code = List.fold_right (fun  arg acc-> acc ^ (expr_to_string consts fvars arg depth) ^ "push rax\n")  args "" in
+      push_args_code ^ 
+      "push " ^ n ^ "\n" ^
+      (expr_to_string consts fvars body depth) ^
+      "CLOSURE_ENV rbx, rax\n" ^
+      "push rbx\n" ^
+      "push qword[rbp + 8 * 1] ;old ret addr\n" ^
+      "FIX_STACK_APPLICTP " ^ (string_of_int (3 + (List.length args))) ^ "\n" ^
+      "CLOSURE_CODE rbx, rax\n" ^
+      "jmp rbx\n" 
+      
     and lambda_expr_to_string consts fvars params body depth =
       let num = next () in
       let lcode = "Lcode" ^ (string_of_int num) in 

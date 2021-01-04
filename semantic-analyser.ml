@@ -362,11 +362,11 @@ let annotate_lexical_addresses e =
   annotate_lexical e [];;
 
 
-let annotate_tail_calls e = e (*annotate_TC e false*);;
+let annotate_tail_calls e = annotate_TC e false ;;
 
 
 
-let box_set e =  e (*reach_lambda e*);; 
+let box_set e =  reach_lambda e;; 
 
 
 let run_semantics expr =
@@ -376,6 +376,9 @@ let run_semantics expr =
   
 end;; (* struct Semantics *)
 
+let test_tp_string x = 
+  annotate_TC (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) []) false;;
+
 (* 
 let test_semantics str = Semantics.run_semantics (List.hd (Tag_Parser.tag_parse_expressions (read_sexprs str)));;
 
@@ -384,11 +387,11 @@ let test_find_read_write str =
   let LambdaSimple'(params,body) = expr_tag in
   find_read_write body 0 [] (Env params);;
 
-let test_tp_string x = 
-  annotate_TC (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) []) false;;
 
-let test_lexical_string x =
-  annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) [];;
+
+  
+  let test_lexical_string x =
+    annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs x)))) [];;
 
 let test_get_need_to_be_boxed_vars str = 
   let expr_tag = (annotate_lexical (List.hd ((Tag_Parser.tag_parse_expressions (read_sexprs str)))) []) in

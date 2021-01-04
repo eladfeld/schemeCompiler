@@ -292,6 +292,39 @@
 		mov [rsp+8*2],rax						; fix arg count
 	%%end_missing_arg:
 %endmacro
+
+;fixing the stack when using the tail position optimization
+; %1 = new frame size(h2)
+; old stack frame(h1)
+;------------don't touch rax!! -----------
+%macro FIX_STACK_APPLICTP 1
+	mov rbx, [rbp + 8 * 3]
+	add rbx, 4									; rbx = h1
+	mov rcx, 1									; i = 1
+	%%stack_loop:
+		cmp rcx, %1								;rcx = h2
+		ja %%end_stack_loop
+		mov rdi,rbp								; rdi = rbp
+		shl rcx,3
+		sub rdi,rcx								; rdi = rbp - (8 rcx)
+		shr rcx,3
+		mov rdx, [rdi]
+		mov rdi, rbx
+		sub rdi, rcx
+		mov [rbp + 8 * rdi], rdx
+		inc rcx
+		jmp %%stack_loop
+	%%end_stack_loop:
+	sub rbx, %1
+	shl rbx, 3
+	add rbx,rbp
+	mov rsp,rbx
+
+
+
+
+
+%endmacro
 ;;-------------------------------------------------------------------
 	
 ;;; Macros and routines for printing Scheme OBjects to STDOUT
