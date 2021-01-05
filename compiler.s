@@ -298,6 +298,7 @@
 ; old stack frame(h1)
 ;------------don't touch rax!! -----------
 %macro FIX_STACK_APPLICTP 1
+	mov rsi,[rbp]								; rsi = old rbp
 	mov rbx, [rbp + 8 * 3]
 	add rbx, 4									; rbx = h1
 	mov rcx, 1									; i = 1
@@ -319,11 +320,7 @@
 	shl rbx, 3
 	add rbx,rbp
 	mov rsp,rbx
-
-
-
-
-
+	mov rbp,rsi									; rbp = old rbp
 %endmacro
 ;;-------------------------------------------------------------------
 	

@@ -319,7 +319,15 @@ module Prims : PRIMS = struct
       ret
     
     apply:
-      ;-----------------------------< not yet implemented!!!! >-----------------------------------
+    push rbp
+    mov rbp, rsp
+    mov rsi, PVAR(0)          ;rsi = function
+    mov rdi, PVAR(1)          ;rdi = list
+
+
+    
+    pop rbp
+    ret
 
     car:
       push rbp

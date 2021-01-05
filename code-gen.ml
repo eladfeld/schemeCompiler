@@ -73,6 +73,7 @@ let rec collect_sexp expr =
     
     exception X_my_exception of expr;;
 
+    exception X_my_exception1 of expr';;
 
   let rec find_sexpr_offset sexp const_tbl = 
     match const_tbl with 
@@ -84,7 +85,7 @@ let rec collect_sexp expr =
     match fvars with 
     |entry::rest -> let (cur_name, offset) = entry in 
         if(name = cur_name) then string_of_int offset else find_fvar_offset name rest
-    |[] -> "---------WARNING NO SUCH FREE VAR DEFINED-------------";;
+    |[] -> "---------WARNING NO SUCH FREE VAR DEFINED -"^name^"------------";;
 
   let rec build_const_tbl sexprs const_tbl current_offset=
     let sexpr_to_const_entry sexpr const_tbl current_offset=
@@ -95,8 +96,8 @@ let rec collect_sexp expr =
       | Void -> (current_offset + 1 ,(Void, (current_offset , "MAKE_VOID\n") ) ) 
       | Sexpr(Number(Fraction(num,denum))) -> (current_offset + 17 ,(Sexpr(Number(Fraction(num,denum))), (current_offset , "MAKE_LITERAL_RATIONAL(" ^ (string_of_int num) ^ "," ^ (string_of_int denum) ^ ")\n")))
       | Sexpr(Number(Float(flt))) -> (current_offset + 9 ,(Sexpr(Number(Float(flt))), (current_offset , "MAKE_LITERAL_FLOAT(" ^ (string_of_float flt) ^ ")\n")))
-      | Sexpr(Char(c)) -> (current_offset + 2 ,(Sexpr(Char(c)), (current_offset, "MAKE_LITERAL_CHAR(" ^ (String.make 1 c) ^ ")\n")))
-      | Sexpr(String(str)) -> (current_offset + 9 + (String.length str) ,(Sexpr(String(str)), (current_offset, "MAKE_LITERAL_STRING " ^ str ^"\n") ) )
+      | Sexpr(Char(c)) -> (current_offset + 2 ,(Sexpr(Char(c)), (current_offset, "MAKE_LITERAL_CHAR(" ^ (string_of_int (Char.code c)) ^ ")\n")))
+      | Sexpr(String(str)) -> (current_offset + 9 + (String.length str) ,(Sexpr(String(str)), (current_offset, "MAKE_LITERAL_STRING \"" ^ str ^"\"\n") ) )
       | Sexpr(Symbol(symb)) -> (current_offset + 9 ,(Sexpr(Symbol(symb)) , (current_offset  , "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_sexpr_offset (Sexpr(String(symb))) const_tbl) ^ ")\n")))
       | Sexpr(Pair(car,cdr)) -> (current_offset + 17, (Sexpr(Pair(car,cdr)) , (current_offset  , "MAKE_LITERAL_PAIR(const_tbl+" ^ (find_sexpr_offset (Sexpr(car)) const_tbl) ^ ",const_tbl+" ^ (find_sexpr_offset (Sexpr(cdr)) const_tbl) ^")\n")))
       in
@@ -113,16 +114,16 @@ let rec collect_sexp expr =
     | LambdaSimple'(params,body) -> collect_fvars body
     | LambdaOpt'(mandatory, optional, body) -> collect_fvars body
     | Or'(ors) -> List.fold_left (fun acc o -> List.append acc (collect_fvars o)) [] ors
-    | Set'(vr,vl) -> collect_fvars vl
+    | Set'(vr,vl) -> List.append (collect_fvars (Var' (vr))) (collect_fvars vl)
     | Seq'(seq) ->  List.fold_left (fun acc e -> List.append acc (collect_fvars e)) [] seq
-    | Def'(vr,vl) -> collect_fvars vl
+    | Def'(vr,vl) -> List.append (collect_fvars (Var' (vr))) (collect_fvars vl)
     | Applic'(body,args) -> List.append (collect_fvars body) (List.fold_left (fun acc arg -> List.append acc (collect_fvars arg)) [] args)
     | ApplicTP'(body,args) -> List.append (collect_fvars body) (List.fold_left (fun acc arg -> List.append acc (collect_fvars arg)) [] args)
     | Var'(VarFree(name)) -> [name]
     | Var'(x) -> []
-    | BoxSet'(vr,vl) -> collect_fvars vl
-    | BoxGet'(vr) -> []
-    | Box'(var) -> [];;
+    | BoxSet'(vr,vl) -> List.append (collect_fvars (Var'(vr))) (collect_fvars vl)
+    | BoxGet'(vr) -> (collect_fvars (Var'(vr)))
+    | Box'(var) -> (collect_fvars (Var'(var)));;
 
   let rec build_fvars_tbl fvars index= 
       match fvars with
@@ -133,6 +134,7 @@ let rec collect_sexp expr =
 
   let rec expr_to_string consts fvars e depth= 
     match e with 
+    | Def'(VarFree(name), vl) ->  def_to_string consts fvars depth vl name
     | Const'(c) -> "mov rax,const_tbl+" ^ (find_sexpr_offset c consts) ^ "\n"
     | Var'(VarParam(_,minor)) -> "mov rax, qword[rbp + 8*(4+" ^ (string_of_int minor) ^ ")]\n"
     | Set'(VarParam(_, minor), vl) -> (expr_to_string consts fvars vl depth) ^ "mov qword [rbp + 8*(4+" ^ (string_of_int minor) ^ ")], rax\nmov rax, SOB_VOID_ADDRESS\n"
@@ -150,7 +152,14 @@ let rec collect_sexp expr =
     | Applic'(body,args) -> applic_expr_to_string consts fvars body args depth
     | ApplicTP'(body,args) -> applicTP_expr_to_string consts fvars body args depth
     | LambdaOpt'(mandatory, optional, body) -> lambda_optional_expr_to_string consts fvars mandatory optional body depth
-    |_ -> raise X_not_yet_implemented 
+    | x -> raise (X_my_exception1 x)
+
+    and def_to_string consts fvars depth vl name =
+      expr_to_string consts fvars vl depth ^ 
+      "mov qword[fvar_tbl+" ^ (find_fvar_offset name fvars) ^"], rax\n" ^
+      "mov rax, SOB_VOID_ADDRESS\n"
+      
+
 
     and box_to_string consts fvars minor depth =
       "mov rax, qword[rbp + 8 * (4 + " ^ minor ^ ")]\n" ^

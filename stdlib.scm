@@ -34,9 +34,14 @@
   	))) 
 
 (define cons*
-  #;(Add your implementation here
-     Note: The file won't compile like this, beacuase your tag-parser requires define to have a second expression.
-     This is on purpose, so you don't compile the library without completing this implementation by mistake.))
+   (lambda (a . b)
+                  (if (eq? b '())
+                      a
+                      (letrec ((f (lambda (x) 
+                                   (if (eq? (cdr x) '())
+                                       (car x)
+                                       (cons (car x) (f (cdr x))))))) (cons a (f b))))))
+
 
 (define append
   (let ((null? null?)

@@ -362,7 +362,7 @@ let annotate_lexical_addresses e =
   annotate_lexical e [];;
 
 
-let annotate_tail_calls e = annotate_TC e false ;;
+let annotate_tail_calls e = annotate_TC e false;;
 
 
 
