@@ -12,7 +12,7 @@ def run_compiler(filename):
     os.system('./executables/{0} > ./outputs/{0}'.format(fname))
 
 def run_chez(filename):
-    os.system("chezscheme9.5 --quiet < ./inputs/{} >& ./expected_outputs/{}".format(filename, filename[:-4]))
+    os.system("scheme --quiet < ./inputs/{} >& ./expected_outputs/{}".format(filename, filename[:-4]))
 
 def compare(filename):
     output_name = filename[:-4]
