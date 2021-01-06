@@ -8,7 +8,7 @@
 		  '()
 		  (cons
 		   (apply f (map-one car lists))
-		   (map-list f (map-one cdr lists))))))
+		   (map-many f (map-one cdr lists))))))
 	   (map-one
 	    (lambda (f s)
 	      (if (null? s)
@@ -41,8 +41,6 @@
                                    (if (eq? (cdr x) '())
                                        (car x)
                                        (cons (car x) (f (cdr x))))))) (cons a (f b))))))
-
-
 (define append
   (let ((null? null?)
 	(fold-right fold-right)
@@ -192,7 +190,7 @@
 		 ((and (flonum? x) (flonum? y)) (= x y))
 		 ((and (char? x) (char? y)) (= (char->integer x) (char->integer y)))
 		 ((and (pair? x) (pair? y))
-		  (equal?-loop (car x) (car y)) (equal?-loop (cdr x) (cdr y)))
+		  (and (equal?-loop (car x) (car y)) (equal?-loop (cdr x) (cdr y))))
 		 ((and (string? x) (string? y)) (equal?-loop (string->list x) (string->list y)))
 		 (else (eq? x y))))))
     equal?-loop)))
