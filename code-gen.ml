@@ -196,7 +196,8 @@ let rec collect_sexp expr =
      "add rsp, 8              ;pop env\n" ^
      "pop rbx                 ;pop argc\n\n" ^
      "shl rbx, 3              ;rbx=rbx*8\n" ^
-     "add rsp, rbx            ;pop args\n"
+     "add rsp, rbx            ;pop args\n" ^
+     "mov rax,SOB_VOID_ADDRESS\n"
      
      
 
@@ -321,7 +322,7 @@ module Code_Gen : CODE_GEN = struct
   let generate consts fvars e = expr_to_string consts fvars e 0;;
 end;;
 
-let test_collect_sexp str = 
+(* let test_collect_sexp str = 
   collect_sexp (Semantics.run_semantics (List.hd (Tag_Parser.tag_parse_expressions (Reader.read_sexprs str))));;
 
 let test_expand_sexp str =
@@ -353,8 +354,6 @@ let test_generate_code str=
   let code = List.fold_left (fun acc ast -> acc ^ (expr_to_string consts fvars ast 0)) "" (List.map Semantics.run_semantics
                            (Tag_Parser.tag_parse_expressions
                               (Reader.read_sexprs str))) in
-  Printf.printf "%s" code;;
+  Printf.printf "%s" code;; *)
 
-
-(*  *)
   

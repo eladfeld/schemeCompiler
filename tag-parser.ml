@@ -200,14 +200,29 @@ and cond_expander sexpr =
     
 and quasiquote_expander exps = 
   match exps with
-  | Pair(Symbol("unquote"), Pair(sexp, Nil)) -> tag_parse sexp
+  | Pair(Symbol("unquote"),Pair(sexpr,Nil)) -> tag_parse sexpr
+  | Pair(Symbol("unquote-splicing"),Pair(sexpr,Nil)) ->tag_parse (Pair(Symbol("quote"),Pair(Pair(Symbol("unquote-splicing"),Pair(sexpr,Nil)),Nil)))
+  | Nil -> tag_parse (Pair(Symbol("quote"),Pair(Nil,Nil)))
+  | Symbol(x) -> tag_parse (Pair(Symbol("quote"),Pair(Symbol(x),Nil)))
+  | Pair(Pair(Symbol("unquote-splicing"),Pair(sexpr,Nil)),b) -> Applic(Var("append"),[tag_parse sexpr ; quasiquote_expander b] )
+  | Pair(a,b) -> Applic(Var("cons"),[quasiquote_expander a ;quasiquote_expander b ])
+  | x -> tag_parse (Pair(Symbol("quote"),Pair(x, Nil)))
+
+
+
+
+
+
+
+
+  (* | Pair(Symbol("unquote"), Pair(sexp, Nil)) -> tag_parse sexp
   | Pair(Symbol("unquote-splicing"),Pair(sexp, Nil) ) -> raise X_syntax_error
   | Nil -> tag_parse (Pair(Symbol("quote") , Pair(Nil,Nil)))
   | Symbol(x) -> tag_parse (Pair(Symbol("quote") , Pair(Symbol(x),Nil) ))
   | Pair(Pair(Symbol("unquote-splicing"),Pair(sexp, Nil)),b) -> Applic(Var("append"), [tag_parse sexp ;quasiquote_expander b ] )
   | Pair(a,Pair(Symbol("unquote-splicing"),Pair(sexp, Nil))) -> Applic(Var("cons") , [quasiquote_expander a ; tag_parse sexp])
   | Pair(a,b) -> Applic(Var("cons") , [quasiquote_expander a; quasiquote_expander b])
-  | _ -> raise X_syntax_error
+  | _ -> raise X_syntax_error *)
 
 and let_expander init body = 
   let (paramters,vals) = get_params_vals init in

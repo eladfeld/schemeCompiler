@@ -19,12 +19,12 @@
       (map-many f args)))))
 
 
-(define fold-left 
-  (lambda (func acc list) 
-	(if (equal? list '()) 
-		acc
-		(fold-left func (func (car list) acc) (cdr list))
-  	)))
+(define fold-left (lambda (func acc lst)
+                          (if (null? lst)
+                              acc
+                              (fold-left func (func acc (car lst)) (cdr lst)
+))))
+
 
 (define fold-right
   (lambda (func acc list) 
