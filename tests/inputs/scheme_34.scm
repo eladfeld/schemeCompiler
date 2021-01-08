@@ -1,5 +1,0 @@
-((lambda (x . y)
-     ((lambda ()
-        (set-cdr! x y)))
-     x)
-   (cons 1 2))

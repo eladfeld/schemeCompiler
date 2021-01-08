@@ -1,1 +1,0 @@
-((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s ((lambda s s) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) s)) 'mary 'had 'a 'little 'lambda)
