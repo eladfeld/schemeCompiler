@@ -9,7 +9,7 @@
 %define T_SYMBOL 8
 %define T_CLOSURE 9
 %define T_PAIR 10
-%define NI
+
 %define TYPE_SIZE 1
 %define WORD_SIZE 8
 	
@@ -53,15 +53,6 @@
 %define CLOSURE_CODE CDR
 
 %define PVAR(n) qword [rbp+(4+n)*WORD_SIZE]
-
-%macro  print_msg 0
-    mov     ecx, msg
-    mov     edx, len
-    mov     ebx, 1
-    mov     eax, 4
-    int     0x80
-%endmacro
-
 
 ; returns %2 allocated bytes in register %1
 ; Supports using with %1 = %2
@@ -137,7 +128,6 @@
 
 %define MAKE_LITERAL_RATIONAL(num, den) \
 	MAKE_WORDS_LIT T_RATIONAL, num, den
-
 	
 %define MAKE_PAIR(r, car, cdr) \
         MAKE_TWO_WORDS r, T_PAIR, car, cdr
@@ -166,7 +156,7 @@
 
 %define MAKE_LITERAL_CHAR(val) MAKE_LITERAL T_CHAR, db val
 
-%macro MAKE_LITERAL_STRING 1
+%macro MAKE_LITERAL_STRING 1+
 	db T_STRING
 	dq (%%end_str -%%str)
 	%%str:
@@ -323,7 +313,7 @@
 	mov rbp,rsi									; rbp = old rbp
 %endmacro
 ;;-------------------------------------------------------------------
-	
+		
 ;;; Macros and routines for printing Scheme OBjects to STDOUT
 %define CHAR_NUL 0
 %define CHAR_TAB 9

@@ -88,6 +88,12 @@ let rec collect_sexp expr =
     |[] -> "---------WARNING NO SUCH FREE VAR DEFINED -"^name^"------------";;
 
   let rec build_const_tbl sexprs const_tbl current_offset=
+    let string_to_ascii_list str =
+      if String.length str = 0 then "\"\"" else
+      let chars = string_to_list str in
+      let asciis = List.map Char.code chars in
+      let ascii_strs = List.map (Printf.sprintf "%d") asciis in
+      String.concat ", "ascii_strs in
     let sexpr_to_const_entry sexpr const_tbl current_offset=
       match sexpr with
       | Sexpr(Bool(true)) -> (current_offset + 2 ,(Sexpr(Bool(true)), (current_offset , "MAKE_LITERAL_BOOL(1)\n") ))
@@ -97,7 +103,7 @@ let rec collect_sexp expr =
       | Sexpr(Number(Fraction(num,denum))) -> (current_offset + 17 ,(Sexpr(Number(Fraction(num,denum))), (current_offset , "MAKE_LITERAL_RATIONAL(" ^ (string_of_int num) ^ "," ^ (string_of_int denum) ^ ")\n")))
       | Sexpr(Number(Float(flt))) -> (current_offset + 9 ,(Sexpr(Number(Float(flt))), (current_offset , "MAKE_LITERAL_FLOAT(" ^ (string_of_float flt) ^ ")\n")))
       | Sexpr(Char(c)) -> (current_offset + 2 ,(Sexpr(Char(c)), (current_offset, "MAKE_LITERAL_CHAR(" ^ (string_of_int (Char.code c)) ^ ")\n")))
-      | Sexpr(String(str)) -> (current_offset + 9 + (String.length str) ,(Sexpr(String(str)), (current_offset, "MAKE_LITERAL_STRING \"" ^ str ^"\"\n") ) )
+      | Sexpr(String(str)) -> (current_offset + 9 + (String.length str) ,(Sexpr(String(str)), (current_offset, "MAKE_LITERAL_STRING " ^ string_to_ascii_list str ^"\n") ) )
       | Sexpr(Symbol(symb)) -> (current_offset + 9 ,(Sexpr(Symbol(symb)) , (current_offset  , "MAKE_LITERAL_SYMBOL(const_tbl+" ^ (find_sexpr_offset (Sexpr(String(symb))) const_tbl) ^ ")\n")))
       | Sexpr(Pair(car,cdr)) -> (current_offset + 17, (Sexpr(Pair(car,cdr)) , (current_offset  , "MAKE_LITERAL_PAIR(const_tbl+" ^ (find_sexpr_offset (Sexpr(car)) const_tbl) ^ ",const_tbl+" ^ (find_sexpr_offset (Sexpr(cdr)) const_tbl) ^")\n")))
       in

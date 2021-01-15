@@ -228,14 +228,13 @@ open PC;;
                   nt_String::     
                   nt_Symbol::
                   nt_List s::
-                  (* nt_DottedList s:: *)
+                  nt_DottedList s::
                   nt_Quoted s::     
                   nt_QuasiQuoted s::
                   nt_Unquoted s::   
                   nt_UnquoteAndSpliced s::[])) 
   in nt_sexpr s
 
-  (* (a b c d . e f g) *)
   (*-------------------------------------comments and whitespace------------------------------*)
   and nt_SexprComment s= (pack 
   (caten (word "#;") nt_Sexpr) 
@@ -247,23 +246,15 @@ open PC;;
   and make_spacedCommented nt s= make_paired (nt_CommentOrWhiteSpaces s) (nt_CommentOrWhiteSpaces s) nt s
 (*-------------------------------------List-------------------------------------------------*)
   and nt_List s = 
-  pack (caten (char '(') (caten (nt_CommentOrWhiteSpaces s) (caten (star nt_Sexpr) (caten (maybe (caten (char '.') nt_Sexpr)) (char ')')))))
-  (fun (_, (_, (a, (dotted, _))))->match dotted with
-  | Some(('.',sexpr)) -> list_to_improper_list (List.append a [sexpr])
-  | None ->  list_to_proper_list a)
+  pack (caten (char '(') (caten (nt_CommentOrWhiteSpaces s) (caten (star nt_Sexpr) (char ')')))) 
+  (fun (_, (_, (a, _)))->list_to_proper_list a)
 
-(* 
-  pack (caten (char '(') (caten (nt_CommentOrWhiteSpaces s) (caten (star nt_Sexpr) (caten (maybe (caten (char '.') nt_Sexpr)) (char ')')))))
-  (fun (oParan , (spaces , (exprs , (dotted , cParan))))->
-  (oParan , (spaces , (exprs , (dotted , cParan))))) *)
-
-
-  (* and nt_DottedList s= 
+  and nt_DottedList s= 
   pack
     (caten (char '(') 
         (caten (plus nt_Sexpr) 
           (caten (char '.') 
-          (caten nt_Sexpr (char ')'))))) (fun (_, (ls, (_, (rs, _))))-> list_to_improper_list (List.append ls (rs::[]))) *)
+          (caten nt_Sexpr (char ')'))))) (fun (_, (ls, (_, (rs, _))))-> list_to_improper_list (List.append ls (rs::[])))
 
 (*-------------------------------------Quotes-----------------------------------------------*)
 
