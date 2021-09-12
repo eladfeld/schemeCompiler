@@ -1,5 +1,5 @@
-Mihael amar - 208383984
-Elad feldman - 308385947
+Mihael amar 
+Elad feldman 
 
 I (We) assert that the work we submitted is 100% our own. We have not received any
 part from any other student in the class, nor have we give parts of it for use to others.
